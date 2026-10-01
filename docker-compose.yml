@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: hims-postgres
+    environment:
+      POSTGRES_DB: hims_simulation
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5433:5432"
+    volumes:
+      - hims_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d hims_simulation"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  hims_postgres_data:

@@ -1,0 +1,36 @@
+node_modules
+.next/
+out/
+build
+dist
+coverage
+.vercel
+*.log
+npm-debug.log*
+.env
+.env.*
+!.env.example
+.DS_Store
+*.pem
+*.tsbuildinfo
+.eslintcache
+Thumbs.db
+.vscode/
+.idea/
+.e2e/
+# Project-local PostgreSQL cluster (npm run db:up without Docker)
+.pgdata/
+
+# AI assistant and coding-agent files (local only)
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+AGENTS.md
+.agents/
+.mcp.json
+GEMINI.md
+.gemini/
+.cursor/
+.cursorrules
+.windsurfrules
+.github/copilot-instructions.md

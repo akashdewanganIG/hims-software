@@ -1,0 +1,122 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DATABASE_URL: postgresql://postgres:password@localhost:5433/hims_simulation
+  DIRECT_URL: postgresql://postgres:password@localhost:5433/hims_simulation
+
+jobs:
+  checks:
+    name: Types, lint, tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      # Browser mode: these jobs need no database.
+      DATABASE_URL: ""
+      DIRECT_URL: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check-types
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm test
+      - run: npm run verify:sim
+      - name: Migrations match lib/server/db/schema.ts
+        run: |
+          npx drizzle-kit check
+          npm run db:generate
+          if [ -n "$(git status --porcelain drizzle)" ]; then
+            git status --porcelain drizzle
+            echo "Schema changed without a migration: run npm run db:generate and commit ./drizzle"
+            exit 1
+          fi
+      - run: npm run build
+
+  database:
+    name: PostgreSQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: hims_simulation
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hims_simulation"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run db:migrate
+      - run: npm run db:seed
+      - run: npm run db:verify
+      - run: npm run test:db
+      - name: The same suite through Neon's serverless driver
+        run: npm run test:db:neon
+
+  e2e:
+    name: End-to-end (PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: hims_simulation
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hims_simulation"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      SESSION_SECRET: ci-only-session-secret-not-for-real-use-0123456789
+      E2E_BROWSER: chrome
+      E2E_BASE_URL: http://localhost:3002
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run db:migrate
+      - run: npm run build
+      - name: Start the app
+        run: |
+          npm start > server.log 2>&1 &
+          for i in $(seq 1 90); do
+            curl -sf http://localhost:3002/api/health && exit 0
+            sleep 2
+          done
+          cat server.log
+          exit 1
+      - run: npm run e2e
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-screenshots
+          path: |
+            .e2e
+            server.log
+          if-no-files-found: ignore
