@@ -7,6 +7,7 @@ import {
   ArrowRightLeft,
   BedIcon,
   Broom,
+  Edit,
   Plus,
   Wrench,
 } from "@/components/icons";
@@ -29,6 +30,7 @@ import { MagnitudeBars, RatioGauge } from "@/components/ui/chart-primitives";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { Input } from "@/components/ui/input";
 import { SearchInput } from "@/components/ui/search-input";
+import { CapacityDialog } from "@/features/beds/capacity-dialog";
 import {
   Sheet,
   SheetBody,
@@ -50,6 +52,7 @@ import {
   humanize,
 } from "@/lib/format";
 import { matches } from "@/lib/api/lookup";
+import { ADMINISTRATOR_ROLE } from "@/lib/rbac";
 import { useSession } from "@/lib/session";
 import type { BedStatus } from "@/lib/sim/schema";
 import { cn } from "@/lib/utils";
@@ -80,13 +83,14 @@ const DOT: Record<BedStatus, string> = {
 };
 
 export default function BedsPage() {
-  const { can } = useSession();
+  const { can, role } = useSession();
   const { data, isLoading, error } = useBedBoard();
   const [status, setStatus] = React.useState<BedStatus | "ALL">("ALL");
   const [floor, setFloor] = React.useState("");
   const [q, setQ] = React.useState("");
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [admitBed, setAdmitBed] = React.useState<string | null>(null);
+  const [capacityOpen, setCapacityOpen] = React.useState(false);
 
   const totals = data?.totals;
   const occupied = totals?.OCCUPIED ?? 0;
@@ -115,11 +119,25 @@ export default function BedsPage() {
         title="Bed management"
         subtitle="Live bed board. Occupancy is driven by admissions: admitting occupies a bed, transfer moves it, discharge releases it to cleaning."
         actions={
-          can("ipd.admit") ? (
-            <Button onClick={() => setAdmitBed("")}>
-              <Plus className="size-4" />
-              Admit patient
-            </Button>
+          role?.id === ADMINISTRATOR_ROLE || can("ipd.admit") ? (
+            <>
+              {role?.id === ADMINISTRATOR_ROLE ? (
+                <Button
+                  variant="outline"
+                  onClick={() => setCapacityOpen(true)}
+                  disabled={!data}
+                >
+                  <Edit className="size-4" />
+                  Edit capacity
+                </Button>
+              ) : null}
+              {can("ipd.admit") ? (
+                <Button onClick={() => setAdmitBed("")}>
+                  <Plus className="size-4" />
+                  Admit patient
+                </Button>
+              ) : null}
+            </>
           ) : null
         }
       />
@@ -320,6 +338,11 @@ export default function BedsPage() {
         open={admitBed !== null}
         onOpenChange={open => !open && setAdmitBed(null)}
         prefill={admitBed ? { bedId: admitBed } : undefined}
+      />
+      <CapacityDialog
+        open={capacityOpen}
+        onOpenChange={setCapacityOpen}
+        wards={data?.wards ?? []}
       />
     </PageShell>
   );

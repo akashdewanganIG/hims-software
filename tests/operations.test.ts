@@ -1860,6 +1860,94 @@ test("beds: housekeeping transitions and manual reservations", () => {
   h.assertShadowMatches();
 });
 
+test("beds: only administrators can safely change room capacity", () => {
+  const h = new Hospital();
+  const admin = h.login("ADMINISTRATOR");
+  const nurse = h.login("NURSE");
+  const delegated = h.login("RECEPTIONIST");
+  const room = h.db.rooms.find(row => row.number === "401")!;
+  const before = h.db.beds.filter(bed => bed.roomId === room.id);
+
+  h.refuse(
+    nurse,
+    "beds.updateCapacity",
+    { rooms: [{ roomId: room.id, capacity: before.length + 1 }] },
+    { code: "FORBIDDEN" }
+  );
+
+  // Even a delegated users.manage permission does not make a non-Administrator
+  // eligible for this structural hospital change.
+  h.run(admin, "admin.updateUser", {
+    userId: delegated,
+    customAccess: true,
+    modules: ["beds"],
+    actions: ["users.manage"],
+  });
+  h.refuse(
+    delegated,
+    "beds.updateCapacity",
+    { rooms: [{ roomId: room.id, capacity: before.length + 1 }] },
+    { message: /Only an Administrator/ }
+  );
+
+  const changed = h.run(admin, "beds.updateCapacity", {
+    rooms: [{ roomId: room.id, capacity: before.length + 2 }],
+  });
+  assert.deepEqual(changed, [
+    {
+      roomId: room.id,
+      room: room.number,
+      ward: "Private Rooms",
+      before: before.length,
+      after: before.length + 2,
+    },
+  ]);
+  const expanded = h.db.beds.filter(bed => bed.roomId === room.id);
+  assert.equal(expanded.length, before.length + 2);
+  assert.ok(expanded.slice(-2).every(bed => bed.status === "AVAILABLE"));
+  assert.equal(new Set(h.db.beds.map(bed => bed.code)).size, h.db.beds.length);
+
+  // Newly-created, never-used beds can be removed again.
+  h.run(admin, "beds.updateCapacity", {
+    rooms: [{ roomId: room.id, capacity: before.length }],
+  });
+  assert.deepEqual(
+    h.db.beds.filter(bed => bed.roomId === room.id).map(bed => bed.id),
+    before.map(bed => bed.id)
+  );
+
+  // A room cannot shrink past beds referenced by active or historical stays.
+  const protectedBed = h.db.beds.find(bed =>
+    h.db.bedAssignments.some(assignment => assignment.bedId === bed.id)
+  )!;
+  const protectedRoom = h.db.rooms.find(
+    candidate => candidate.id === protectedBed.roomId
+  )!;
+  const protectedRoomBeds = h.db.beds.filter(
+    bed => bed.roomId === protectedRoom.id
+  );
+  const removable = protectedRoomBeds.filter(
+    bed =>
+      bed.status === "AVAILABLE" &&
+      !bed.admissionId &&
+      !h.db.bedAssignments.some(assignment => assignment.bedId === bed.id)
+  ).length;
+  const minimum = protectedRoomBeds.length - removable;
+  h.refuse(
+    admin,
+    "beds.updateCapacity",
+    { rooms: [{ roomId: protectedRoom.id, capacity: minimum - 1 }] },
+    { message: /cannot be reduced below/ }
+  );
+
+  assert.ok(
+    h.db.activity.some(event => event.action === "capacity_updated"),
+    "capacity edits are audited"
+  );
+  h.assertIntact();
+  h.assertShadowMatches();
+});
+
 test("complaints and feedback: SLA workflow and follow-ups", () => {
   const h = new Hospital();
   const desk = h.login("RECEPTIONIST");

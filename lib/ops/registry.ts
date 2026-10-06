@@ -26,6 +26,7 @@ import {
   removeManualCharge,
   setLineDiscount,
 } from "../domain/billing";
+import { MAX_ROOM_CAPACITY, updateRoomCapacities } from "../domain/beds";
 import { DOCUMENT_TYPES, IMAGE_TYPES } from "../domain/files";
 import {
   addFollowUp,
@@ -806,6 +807,22 @@ export const OPERATIONS = {
     allow: ["beds.housekeeping"],
     input: z.object({ bedId: id, note: line(300) }),
     run: (tx, i) => reserveBed(tx, i.bedId, i.note),
+  }),
+  "beds.updateCapacity": op({
+    label: "Change bed capacity",
+    allow: ["users.manage"],
+    input: z.object({
+      rooms: z
+        .array(
+          z.object({
+            roomId: id,
+            capacity: z.number().int().min(0).max(MAX_ROOM_CAPACITY),
+          })
+        )
+        .min(1)
+        .max(100),
+    }),
+    run: (tx, i) => updateRoomCapacities(tx, i.rooms),
   }),
 
   /* Billing -------------------------------------------------------- */

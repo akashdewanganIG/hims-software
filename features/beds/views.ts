@@ -51,7 +51,13 @@ export interface WardBoard {
   floor: number;
   category: WardCategory;
   dailyRate: number;
-  rooms: Array<{ id: ID; number: string; beds: BedTile[] }>;
+  rooms: Array<{
+    id: ID;
+    number: string;
+    beds: BedTile[];
+    /** Lowest safe capacity without deleting active or historical beds. */
+    minimumCapacity: number;
+  }>;
   counts: Record<BedStatus, number>;
   total: number;
 }
@@ -63,6 +69,9 @@ const emptyCounts = (): Record<BedStatus, number> => ({
   MAINTENANCE: 0,
 });
 export function bedBoardView(db: Database, now: Date) {
+  const assignedBedIds = new Set(
+    db.bedAssignments.map(assignment => assignment.bedId)
+  );
   const tile = (
     bed: Bed,
     room: { number: string },
@@ -116,13 +125,21 @@ export function bedBoardView(db: Database, now: Date) {
     .map(ward => {
       const rooms = db.rooms
         .filter(r => r.wardId === ward.id)
-        .map(room => ({
-          id: room.id,
-          number: room.number,
-          beds: db.beds
-            .filter(b => b.roomId === room.id)
-            .map(b => tile(b, room, ward)),
-        }));
+        .map(room => {
+          const roomBeds = db.beds.filter(b => b.roomId === room.id);
+          const removable = roomBeds.filter(
+            bed =>
+              bed.status === "AVAILABLE" &&
+              !bed.admissionId &&
+              !assignedBedIds.has(bed.id)
+          ).length;
+          return {
+            id: room.id,
+            number: room.number,
+            beds: roomBeds.map(b => tile(b, room, ward)),
+            minimumCapacity: roomBeds.length - removable,
+          };
+        });
       const counts = emptyCounts();
       for (const room of rooms)
         for (const bed of room.beds) counts[bed.status] += 1;
