@@ -173,9 +173,18 @@ export function loadDatabase(): Promise<Database> {
     const now = new Date();
     const stored = await readStored();
     let db: Database;
-    if (stored && stored.db.meta.schemaVersion === SCHEMA_VERSION) {
+    if (
+      stored &&
+      (stored.db.meta.schemaVersion === SCHEMA_VERSION ||
+        (stored.db.meta.schemaVersion === 6 && SCHEMA_VERSION === 7))
+    ) {
       db = stored.db;
       userChanges = stored.userChanges ?? 0;
+      if (db.meta.schemaVersion === 6) {
+        db.alerts ??= [];
+        db.meta.schemaVersion = SCHEMA_VERSION;
+        void writeStored(db);
+      }
       if (isStale(db.meta.anchoredAt, now)) {
         if (userChanges === 0) {
           // Untouched sandbox from an earlier day: replay a fresh one instead.

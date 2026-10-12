@@ -1948,6 +1948,104 @@ test("beds: only administrators can safely change room capacity", () => {
   h.assertShadowMatches();
 });
 
+test("beds: administrators manage custom ward categories and rooms", () => {
+  const h = new Hospital();
+  const admin = h.login("ADMINISTRATOR");
+  const historicalBed = h.db.beds.find(bed =>
+    h.db.bedAssignments.some(assignment => assignment.bedId === bed.id)
+  )!;
+  const historicalRoom = h.db.rooms.find(
+    room => room.id === historicalBed.roomId
+  )!;
+  h.refuse(
+    admin,
+    "beds.deleteRoom",
+    { roomId: historicalRoom.id },
+    { message: /active or have stay history/ }
+  );
+  h.refuse(
+    h.login("NURSE"),
+    "beds.createWard",
+    {
+      code: "ISO",
+      name: "Isolation Ward",
+      floor: 5,
+      category: "Infection Control",
+      dailyRate: 4200,
+    },
+    { code: "FORBIDDEN" }
+  );
+  const ward = h.run(admin, "beds.createWard", {
+    code: "ISO",
+    name: "Isolation Ward",
+    floor: 5,
+    category: "Infection Control",
+    dailyRate: 4200,
+    gender: "OTHER",
+  });
+  assert.equal(ward.category, "Infection Control");
+
+  const updated = h.run(admin, "beds.updateWard", {
+    wardId: ward.id,
+    code: "ISO",
+    name: "Isolation & Infection Control",
+    floor: 5,
+    category: "Isolation",
+    dailyRate: 4500,
+    maxAge: 120,
+  });
+  assert.equal(updated.dailyRate, 4500);
+
+  const room = h.run(admin, "beds.createRoom", {
+    wardId: ward.id,
+    number: "ISO-A",
+    capacity: 2,
+  });
+  assert.equal(h.db.beds.filter(bed => bed.roomId === room.id).length, 2);
+  h.run(admin, "beds.updateRoom", {
+    roomId: room.id,
+    number: "ISO-1",
+  });
+  assert.equal(h.db.rooms.find(row => row.id === room.id)!.number, "ISO-1");
+  h.run(admin, "beds.deleteRoom", { roomId: room.id });
+  assert.ok(!h.db.rooms.some(row => row.id === room.id));
+  h.run(admin, "beds.deleteWard", { wardId: ward.id });
+  assert.ok(!h.db.wards.some(row => row.id === ward.id));
+  h.assertIntact();
+  h.assertShadowMatches();
+});
+
+test("alerts: staff send detailed alerts and recipients mark them read", () => {
+  const h = new Hospital();
+  const admin = h.login("ADMINISTRATOR");
+  const nurse = h.login("NURSE");
+  const pharmacist = h.login("PHARMACIST");
+  const nurseStaff = h.staffOf(nurse);
+  const alert = h.run(admin, "alerts.send", {
+    audience: "STAFF",
+    audienceId: nurseStaff.id,
+    category: "Bed Management",
+    subject: "Isolation room ready",
+    message:
+      "Isolation room ISO-1 is ready. Confirm PPE availability before transfer.",
+    priority: "HIGH",
+  });
+  assert.deepEqual(alert.recipientIds, [nurseStaff.id]);
+  assert.deepEqual(alert.readByIds, []);
+  h.refuse(
+    pharmacist,
+    "alerts.markRead",
+    { alertId: alert.id },
+    { message: /not sent to you/ }
+  );
+  h.run(nurse, "alerts.markRead", { alertId: alert.id });
+  assert.deepEqual(h.db.alerts.find(row => row.id === alert.id)!.readByIds, [
+    nurseStaff.id,
+  ]);
+  h.assertIntact();
+  h.assertShadowMatches();
+});
+
 test("complaints and feedback: SLA workflow and follow-ups", () => {
   const h = new Hospital();
   const desk = h.login("RECEPTIONIST");
@@ -2306,7 +2404,12 @@ test("user management: logins, roles and permissions, with safeguards", () => {
     actions: ["billing.collect", "pharmacy.dispense"],
     homePath: "/pharmacy",
   });
-  assert.deepEqual(role.modules, ["dashboard", "pharmacy", "billing"]);
+  assert.deepEqual(role.modules, [
+    "dashboard",
+    "pharmacy",
+    "alerts",
+    "billing",
+  ]);
   assert.deepEqual(role.actions, ["pharmacy.dispense", "billing.collect"]);
   assert.equal(role.system, false);
   h.refuse(
@@ -2390,7 +2493,7 @@ test("user management: logins, roles and permissions, with safeguards", () => {
     modules: [],
     actions: ["beds.housekeeping"],
   });
-  assert.deepEqual(custom.modules, ["dashboard", "beds"]);
+  assert.deepEqual(custom.modules, ["dashboard", "beds", "alerts"]);
   h.run(user.id, "beds.setHousekeeping", {
     bedId: h.freeBedFor("MALE").id,
     status: "CLEANING",

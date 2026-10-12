@@ -174,7 +174,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
             <AppHeader onMenuClick={() => setMobileSidebarOpen(true)} />
-            <main className="app-content flex-1 overflow-y-auto bg-background">
+            <main className="app-content relative flex-1 overflow-y-auto bg-background [background-image:radial-gradient(circle_at_8%_2%,color-mix(in_srgb,var(--primary)_7%,transparent),transparent_24rem),radial-gradient(circle_at_95%_8%,color-mix(in_srgb,var(--info)_6%,transparent),transparent_28rem)]">
               {allowed ? (
                 children
               ) : (

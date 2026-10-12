@@ -38,7 +38,7 @@ export function Panel({
   return (
     <section
       className={cn(
-        "flex min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm shadow-foreground/[0.02]",
+        "flex min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-md shadow-foreground/[0.04] transition-[box-shadow,border-color] duration-200 hover:border-border-strong hover:shadow-lg hover:shadow-foreground/[0.06]",
         className
       )}
     >

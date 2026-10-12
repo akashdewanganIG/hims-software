@@ -37,11 +37,13 @@ import {
   humanize,
   pluralize,
 } from "@/lib/format";
+import { CHARGE_CATEGORIES } from "@/lib/sim/schema";
 
 export default function BillingPage() {
   const router = useRouter();
   const [view, setView] = React.useState<BillView>("due");
   const [setting, setSetting] = React.useState("");
+  const [category, setCategory] = React.useState("");
   const [q, setQ] = React.useState("");
   const {
     data: rows = [],
@@ -51,6 +53,7 @@ export default function BillingPage() {
     view,
     q: q || undefined,
     setting: setting || undefined,
+    category: category || undefined,
     days: view === "paid" || view === "all" ? 30 : undefined,
   });
   const { data: summary } = useBillingSummary();
@@ -253,6 +256,19 @@ export default function BillingPage() {
                 <option value="">OPD & IPD</option>
                 <option value="OPD">OPD</option>
                 <option value="IPD">IPD</option>
+              </SelectField>
+              <SelectField
+                className="w-full sm:w-44"
+                aria-label="Charge category"
+                value={category}
+                onChange={e => setCategory(e.target.value)}
+              >
+                <option value="">All charge categories</option>
+                {CHARGE_CATEGORIES.map(value => (
+                  <option key={value} value={value}>
+                    {humanize(value)}
+                  </option>
+                ))}
               </SelectField>
             </>
           }

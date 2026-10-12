@@ -67,6 +67,7 @@ export const TABLE_SCHEMA = {
   feedback: schema.feedback,
   shifts: schema.shifts,
   roster: schema.roster,
+  alerts: schema.alerts,
   activity: schema.activity,
 } as const satisfies Record<TableName, PgTable>;
 

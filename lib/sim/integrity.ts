@@ -130,6 +130,7 @@ export const REFERENCES: Ref[] = [
   ["roster", "staffId", "staff"],
   ["roster", "shiftId", "shifts", true],
   ["roster", "departmentId", "departments"],
+  ["alerts", "senderId", "staff"],
   ["activity", "actorId", "staff"],
   ["activity", "patientId", "patients", true],
 ];
@@ -256,6 +257,17 @@ export function checkIntegrity(db: Database): IntegrityIssue[] {
           "Broken reference",
           `${table}.${field} → ${String(value)} not in ${target}`
         );
+    }
+  }
+  const staffIds = ids.get("staff")!;
+  for (const alert of db.alerts) {
+    if (!alert.recipientIds.length) add("Alert without recipients", alert.id);
+    for (const recipientId of alert.recipientIds)
+      if (!staffIds.has(recipientId))
+        add("Broken alert recipient", `${alert.id} → ${recipientId}`);
+    for (const readerId of alert.readByIds) {
+      if (!alert.recipientIds.includes(readerId))
+        add("Alert read by non-recipient", `${alert.id} → ${readerId}`);
     }
   }
 

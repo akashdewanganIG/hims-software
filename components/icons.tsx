@@ -9,6 +9,7 @@ import {
   ArrowsClockwise as PhArrowsClockwise,
   ArrowsLeftRight as PhArrowsLeftRight,
   Bed as PhBed,
+  Bell as PhBell,
   Broom as PhBroom,
   CalendarCheck as PhCalendarCheck,
   CalendarDots as PhCalendarDots,
@@ -203,6 +204,7 @@ export const X = /*#__PURE__*/ duotone(PhX, "X");
 // Hospital-domain glyphs, same family and weight.
 export const Archive = /*#__PURE__*/ duotone(PhArchive, "Archive");
 export const BedIcon = /*#__PURE__*/ duotone(PhBed, "BedIcon");
+export const Bell = /*#__PURE__*/ duotone(PhBell, "Bell");
 export const Broom = /*#__PURE__*/ duotone(PhBroom, "Broom");
 export const CalendarCheck = /*#__PURE__*/ duotone(
   PhCalendarCheck,

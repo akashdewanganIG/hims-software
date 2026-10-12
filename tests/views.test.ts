@@ -21,6 +21,9 @@ const anyDoctor = h.doctorOnDuty().doctor;
 
 /** Representative parameters for each view. */
 const PARAMS: Record<ViewName, unknown> = {
+  "alerts.list": { box: "inbox" },
+  "alerts.summary": {},
+  "alerts.composer": {},
   "dashboard.home": {},
   "dashboard.trend": {},
   "analytics.overview": { days: 30 },
@@ -194,6 +197,55 @@ test("views reflect writes at once and respect the signed-in role", () => {
     nurseBoard.queues.map(q => q.title),
     deskBoard.queues.map(q => q.title)
   );
+});
+
+test("alerts are visible only to their recipients and sender", () => {
+  const hospital = new Hospital();
+  const adminUser = hospital.login("ADMINISTRATOR");
+  const nurseUser = hospital.login("NURSE");
+  const pharmacistUser = hospital.login("PHARMACIST");
+  const alert = hospital.run(adminUser, "alerts.send", {
+    audience: "STAFF",
+    audienceId: hospital.staffOf(nurseUser).id,
+    category: "Isolation Governance",
+    subject: "Review isolation protocol",
+    message: "Review the updated isolation protocol before the evening round.",
+    priority: "HIGH",
+  });
+  const view = (user: string, box: "inbox" | "sent") =>
+    prepareView(hospital.db, user, "alerts.list", { box }).run(
+      hospital.db,
+      hospital.now
+    ) as Array<{ id: string }>;
+  assert.ok(view(nurseUser, "inbox").some(row => row.id === alert.id));
+  assert.ok(view(adminUser, "sent").some(row => row.id === alert.id));
+  assert.ok(!view(pharmacistUser, "inbox").some(row => row.id === alert.id));
+
+  const categories = (user: string) =>
+    (
+      prepareView(hospital.db, user, "alerts.composer", {}).run(
+        hospital.db,
+        hospital.now
+      ) as { categories: string[] }
+    ).categories;
+  assert.ok(categories(adminUser).includes("Isolation Governance"));
+  assert.ok(categories(nurseUser).includes("Isolation Governance"));
+  assert.ok(!categories(pharmacistUser).includes("Isolation Governance"));
+});
+
+test("billing invoices can be filtered by charge category", () => {
+  const invoice = h.db.invoices.find(row =>
+    h.db.invoiceItems.some(item => item.invoiceId === row.id)
+  )!;
+  const category = h.db.invoiceItems.find(
+    item => item.invoiceId === invoice.id
+  )!.category;
+  const rows = read("billing.invoices", {
+    view: "all",
+    category,
+  }) as Array<{ id: string; categories: string[] }>;
+  assert.ok(rows.some(row => row.id === invoice.id));
+  assert.ok(rows.every(row => row.categories.includes(category)));
 });
 
 test("each login's dashboard carries only its own areas", () => {

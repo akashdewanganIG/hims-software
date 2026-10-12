@@ -51,6 +51,7 @@ export interface WardBoard {
   floor: number;
   category: WardCategory;
   dailyRate: number;
+  restriction?: { gender?: "MALE" | "FEMALE" | "OTHER"; maxAge?: number };
   rooms: Array<{
     id: ID;
     number: string;
@@ -150,6 +151,7 @@ export function bedBoardView(db: Database, now: Date) {
         floor: ward.floor,
         category: ward.category,
         dailyRate: ward.dailyRate,
+        restriction: ward.restriction,
         rooms,
         counts,
         total: rooms.reduce((s, r) => s + r.beds.length, 0),

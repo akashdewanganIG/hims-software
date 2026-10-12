@@ -124,13 +124,43 @@ async function replaceDataset(
 
 async function loadState(): Promise<EngineState> {
   const meta = await readSyncMeta(database());
-  if (!meta || meta.schemaVersion !== SCHEMA_VERSION) {
+  if (!meta) {
+    return replaceDataset(generateDatabase(new Date()).db, 0, null);
+  }
+
+  // Version 7 only adds the alerts table. The SQL migration creates it, so
+  // existing v6 hospital data can be adopted without rebuilding the entire
+  // simulation (and without discarding user changes).
+  if (meta.schemaVersion === 6 && SCHEMA_VERSION === 7) {
+    const db = await readTables(database(), meta);
+    db.meta.schemaVersion = SCHEMA_VERSION;
+    const upgraded = await database()
+      .update(syncState)
+      .set({
+        schemaVersion: SCHEMA_VERSION,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(
+        and(
+          eq(syncState.id, 1),
+          eq(syncState.epoch, meta.epoch),
+          eq(syncState.schemaVersion, meta.schemaVersion)
+        )
+      )
+      .returning({ id: syncState.id });
+    if (!upgraded.length) return loadState();
+    return {
+      db,
+      epoch: meta.epoch,
+      version: meta.version,
+      userChanges: meta.userChanges,
+      checkedAt: Date.now(),
+    };
+  }
+
+  if (meta.schemaVersion !== SCHEMA_VERSION) {
     // First run, or data written by an older schema: build a fresh hospital.
-    return replaceDataset(
-      generateDatabase(new Date()).db,
-      0,
-      meta ? meta.epoch : null
-    );
+    return replaceDataset(generateDatabase(new Date()).db, 0, meta.epoch);
   }
   const db = await readTables(database(), meta);
   return {

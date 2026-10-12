@@ -15,6 +15,13 @@
       "when": 1790765312959,
       "tag": "0001_uploaded_files",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791833661351,
+      "tag": "0002_lowly_whiplash",
+      "breakpoints": true
     }
   ]
 }

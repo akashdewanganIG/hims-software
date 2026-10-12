@@ -18,6 +18,7 @@ import {
   updateRole,
   updateUser,
 } from "../domain/admin";
+import { markAlertRead, sendAlert } from "../domain/alerts";
 import {
   addManualCharge,
   cancelInvoice,
@@ -26,7 +27,16 @@ import {
   removeManualCharge,
   setLineDiscount,
 } from "../domain/billing";
-import { MAX_ROOM_CAPACITY, updateRoomCapacities } from "../domain/beds";
+import {
+  MAX_ROOM_CAPACITY,
+  createRoom,
+  createWard,
+  deleteRoom,
+  deleteWard,
+  updateRoom,
+  updateRoomCapacities,
+  updateWard,
+} from "../domain/beds";
 import { DOCUMENT_TYPES, IMAGE_TYPES } from "../domain/files";
 import {
   addFollowUp,
@@ -130,6 +140,7 @@ import {
 import type { Action } from "../rbac";
 import {
   ADMISSION_SOURCES,
+  ALERT_PRIORITIES,
   APPOINTMENT_TYPES,
   BLOOD_GROUPS,
   CARE_ORDER_TYPES,
@@ -302,6 +313,32 @@ function op<S extends z.ZodType, R>(def: OperationDef<S, R>) {
 }
 
 export const OPERATIONS = {
+  /* Staff alerts --------------------------------------------------- */
+  "alerts.send": op({
+    label: "Send alert",
+    allow: [],
+    input: z.object({
+      audience: z.enum(["ALL", "DEPARTMENT", "ROLE", "STAFF"]),
+      audienceId: optionalId,
+      category: line(40),
+      subject: line(120),
+      message: text(2000),
+      priority: z.enum(ALERT_PRIORITIES),
+    }),
+    run: (tx, input) =>
+      sendAlert(tx, {
+        ...input,
+        audienceId: input.audienceId || undefined,
+      }),
+  }),
+  "alerts.markRead": op({
+    label: "Mark alert as read",
+    allow: [],
+    input: z.object({ alertId: id }),
+    run: (tx, input) => markAlertRead(tx, input.alertId),
+    silent: true,
+  }),
+
   /* Patients ------------------------------------------------------- */
   "patient.register": op({
     label: "Register patient",
@@ -823,6 +860,73 @@ export const OPERATIONS = {
         .max(100),
     }),
     run: (tx, i) => updateRoomCapacities(tx, i.rooms),
+  }),
+  "beds.createWard": op({
+    label: "Add ward category",
+    allow: ["users.manage"],
+    input: z.object({
+      code: line(12),
+      name: line(80),
+      floor: z.number().int().min(0).max(200),
+      category: line(50),
+      dailyRate: money,
+      gender: z.enum(GENDERS).optional(),
+      maxAge: z.number().int().min(0).max(150).optional(),
+    }),
+    run: (tx, { gender, maxAge, ...input }) =>
+      createWard(tx, {
+        ...input,
+        restriction:
+          gender || maxAge !== undefined ? { gender, maxAge } : undefined,
+      }),
+  }),
+  "beds.updateWard": op({
+    label: "Edit ward category",
+    allow: ["users.manage"],
+    input: z.object({
+      wardId: id,
+      code: line(12),
+      name: line(80),
+      floor: z.number().int().min(0).max(200),
+      category: line(50),
+      dailyRate: money,
+      gender: z.enum(GENDERS).optional(),
+      maxAge: z.number().int().min(0).max(150).optional(),
+    }),
+    run: (tx, { wardId, gender, maxAge, ...input }) =>
+      updateWard(tx, wardId, {
+        ...input,
+        restriction:
+          gender || maxAge !== undefined ? { gender, maxAge } : undefined,
+      }),
+  }),
+  "beds.deleteWard": op({
+    label: "Remove ward category",
+    allow: ["users.manage"],
+    input: z.object({ wardId: id }),
+    run: (tx, i) => deleteWard(tx, i.wardId),
+  }),
+  "beds.createRoom": op({
+    label: "Add room",
+    allow: ["users.manage"],
+    input: z.object({
+      wardId: id,
+      number: line(20),
+      capacity: z.number().int().min(0).max(MAX_ROOM_CAPACITY),
+    }),
+    run: (tx, i) => createRoom(tx, i.wardId, i.number, i.capacity),
+  }),
+  "beds.updateRoom": op({
+    label: "Rename room",
+    allow: ["users.manage"],
+    input: z.object({ roomId: id, number: line(20) }),
+    run: (tx, i) => updateRoom(tx, i.roomId, i.number),
+  }),
+  "beds.deleteRoom": op({
+    label: "Remove room",
+    allow: ["users.manage"],
+    input: z.object({ roomId: id }),
+    run: (tx, i) => deleteRoom(tx, i.roomId),
   }),
 
   /* Billing -------------------------------------------------------- */

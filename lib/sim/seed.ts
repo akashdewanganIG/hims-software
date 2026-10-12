@@ -7,6 +7,7 @@
  * cleaned) is left exactly there.
  */
 import * as billing from "../domain/billing";
+import * as alerts from "../domain/alerts";
 import * as enquiry from "../domain/enquiry";
 import * as ipd from "../domain/ipd";
 import * as lab from "../domain/lab";
@@ -2339,6 +2340,17 @@ export function generateDatabase(
       fail(event.label, error);
     }
   }
+
+  // A current staff alert makes the inbox demonstrable on first sign-in.
+  alerts.sendAlert(tx(addMinutes(now, -45), opsManagers[0]!.id), {
+    audience: "ROLE",
+    audienceId: "NURSE",
+    category: "Bed Management",
+    subject: "Review isolation-bed readiness",
+    message:
+      "Please confirm PPE stock, oxygen supply and housekeeping clearance for isolation beds before the evening handover.",
+    priority: "HIGH",
+  });
 
   // Keep the audit feed to the recent window; older history lives in the
   // records themselves.

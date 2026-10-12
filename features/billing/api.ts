@@ -9,6 +9,7 @@ export function useInvoices(filters: {
   view: BillView;
   q?: string;
   setting?: string;
+  category?: string;
   days?: number;
 }) {
   return useView("billing.invoices", filters);

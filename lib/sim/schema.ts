@@ -176,7 +176,11 @@ export const WARD_CATEGORIES = [
   "PRIVATE",
   "HDU",
 ] as const;
-export type WardCategory = (typeof WARD_CATEGORIES)[number];
+/**
+ * Suggested starting values only. Administrators may use any concise ward
+ * category (for example "Paediatric" or "General Ward - Male").
+ */
+export type WardCategory = string;
 
 export const NOTE_TYPES = [
   "ADMISSION",
@@ -1105,6 +1109,7 @@ export type EntityType =
   | "appointment"
   | "encounter"
   | "admission"
+  | "ward"
   | "bed"
   | "prescription"
   | "pharmacy"
@@ -1116,7 +1121,8 @@ export type EntityType =
   | "staff"
   | "roster"
   | "user"
-  | "role";
+  | "role"
+  | "alert";
 
 /** Append-only audit trail; feeds timelines and the operations feed. */
 export interface ActivityEvent {
@@ -1128,6 +1134,22 @@ export interface ActivityEvent {
   patientId?: ID;
   action: string;
   summary: string;
+}
+
+export const ALERT_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
+export type AlertPriority = (typeof ALERT_PRIORITIES)[number];
+
+/** A staff message. Recipients are resolved when it is sent for a stable audit trail. */
+export interface StaffAlert {
+  id: ID;
+  senderId: ID;
+  recipientIds: ID[];
+  readByIds: ID[];
+  category: string;
+  subject: string;
+  message: string;
+  priority: AlertPriority;
+  createdAt: ISODateTime;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1179,12 +1201,13 @@ export interface Database {
   feedback: Feedback[];
   shifts: Shift[];
   roster: RosterAssignment[];
+  alerts: StaffAlert[];
   activity: ActivityEvent[];
 }
 
 export type TableName = Exclude<keyof Database, "meta">;
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 export function emptyDatabase(now: ISODateTime): Database {
   return {
@@ -1227,6 +1250,7 @@ export function emptyDatabase(now: ISODateTime): Database {
     feedback: [],
     shifts: [],
     roster: [],
+    alerts: [],
     activity: [],
   };
 }

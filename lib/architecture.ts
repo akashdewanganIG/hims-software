@@ -227,6 +227,21 @@ export const ARCH_MODULES: ArchModule[] = [
     owns: ["Beds", "Bed assignments"],
   },
   {
+    module: "alerts",
+    area: "operations",
+    label: "Staff alerts",
+    description:
+      "Categorised, priority-labelled messages sent to individuals, roles, departments or all active staff.",
+    pages: [
+      {
+        label: "Alert centre",
+        route: "/alerts",
+        description: "Inbox, sent messages, filters and read tracking.",
+      },
+    ],
+    owns: ["Staff alerts", "Read status"],
+  },
+  {
     module: "operations",
     area: "operations",
     label: "Operations centre",

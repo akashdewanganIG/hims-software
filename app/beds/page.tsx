@@ -31,6 +31,7 @@ import { FormDialog } from "@/components/ui/form-dialog";
 import { Input } from "@/components/ui/input";
 import { SearchInput } from "@/components/ui/search-input";
 import { CapacityDialog } from "@/features/beds/capacity-dialog";
+import { StructureDialog } from "@/features/beds/structure-dialog";
 import {
   Sheet,
   SheetBody,
@@ -91,6 +92,7 @@ export default function BedsPage() {
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [admitBed, setAdmitBed] = React.useState<string | null>(null);
   const [capacityOpen, setCapacityOpen] = React.useState(false);
+  const [structureOpen, setStructureOpen] = React.useState(false);
 
   const totals = data?.totals;
   const occupied = totals?.OCCUPIED ?? 0;
@@ -122,14 +124,24 @@ export default function BedsPage() {
           role?.id === ADMINISTRATOR_ROLE || can("ipd.admit") ? (
             <>
               {role?.id === ADMINISTRATOR_ROLE ? (
-                <Button
-                  variant="outline"
-                  onClick={() => setCapacityOpen(true)}
-                  disabled={!data}
-                >
-                  <Edit className="size-4" />
-                  Edit capacity
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => setStructureOpen(true)}
+                    disabled={!data}
+                  >
+                    <Plus className="size-4" />
+                    Manage wards & rooms
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setCapacityOpen(true)}
+                    disabled={!data}
+                  >
+                    <Edit className="size-4" />
+                    Edit capacity
+                  </Button>
+                </>
               ) : null}
               {can("ipd.admit") ? (
                 <Button onClick={() => setAdmitBed("")}>
@@ -342,6 +354,11 @@ export default function BedsPage() {
       <CapacityDialog
         open={capacityOpen}
         onOpenChange={setCapacityOpen}
+        wards={data?.wards ?? []}
+      />
+      <StructureDialog
+        open={structureOpen}
+        onOpenChange={setStructureOpen}
         wards={data?.wards ?? []}
       />
     </PageShell>

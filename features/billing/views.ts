@@ -63,6 +63,7 @@ export function invoicesView(
     view: BillView;
     q?: string;
     setting?: string;
+    category?: string;
     days?: number;
   }
 ) {
@@ -102,6 +103,11 @@ export function invoicesView(
       if (filters.view === "refund" && row.refundDue <= 0) return false;
       if (filters.view === "paid" && row.status !== "PAID") return false;
       if (filters.setting && row.setting !== filters.setting) return false;
+      if (
+        filters.category &&
+        !row.categories.includes(filters.category as ChargeCategory)
+      )
+        return false;
       if (since && row.createdAt < since && row.status === "PAID") return false;
       if (
         filters.q &&

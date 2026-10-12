@@ -117,13 +117,15 @@ function accessFields(role: Role, input: LoginInput, current?: User) {
     (input.customAccess ?? current?.customAccess ?? false) &&
     role.id !== ADMINISTRATOR_ROLE;
   if (!custom) return { customAccess: false, modules: [], actions: [] };
-  const grants = checkGrants(
-    input.modules ?? current?.modules ?? [],
-    input.actions ?? current?.actions ?? []
-  );
+  const requestedModules = input.modules ?? current?.modules ?? [];
+  const requestedActions = input.actions ?? current?.actions ?? [];
+  const grants = checkGrants(requestedModules, requestedActions);
   assert(
-    grants.actions.length > 0 || grants.modules.length > 1,
-    "Custom access needs at least one module or action beyond the dashboard."
+    requestedActions.length > 0 ||
+      requestedModules.some(
+        module => module !== "dashboard" && module !== "alerts"
+      ),
+    "Custom access needs at least one module or action beyond the dashboard and alerts."
   );
   return { customAccess: true, ...grants };
 }

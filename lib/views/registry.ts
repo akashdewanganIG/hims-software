@@ -15,6 +15,11 @@ import {
   adminUsersView,
 } from "@/features/admin/views";
 import { analyticsView } from "@/features/analytics/views";
+import {
+  alertComposerView,
+  alertSummaryView,
+  alertsView,
+} from "@/features/alerts/views";
 import { bedBoardView } from "@/features/beds/views";
 import {
   billingSummaryView,
@@ -101,6 +106,29 @@ function view<S extends z.ZodType, R>(def: ViewDef<S, R>) {
 }
 
 export const VIEWS = {
+  /* Staff alerts --------------------------------------------------- */
+  "alerts.list": view({
+    modules: ["alerts"],
+    params: z.object({
+      box: z.enum(["inbox", "sent"]),
+      q: filter,
+      category: filter,
+      priority: filter,
+      unreadOnly: z.boolean().optional(),
+    }),
+    run: alertsView,
+  }),
+  "alerts.summary": view({
+    modules: ["alerts"],
+    params: none,
+    run: (db, now, _params, actor) => alertSummaryView(db, now, actor),
+  }),
+  "alerts.composer": view({
+    modules: ["alerts"],
+    params: none,
+    run: (db, _now, _params, actor) => alertComposerView(db, actor),
+  }),
+
   /* Dashboard & performance ---------------------------------------- */
   "dashboard.home": view({
     modules: ["dashboard"],
@@ -299,6 +327,7 @@ export const VIEWS = {
       view: z.enum(["due", "running", "refund", "paid", "all"]),
       q: filter,
       setting: filter,
+      category: filter,
       days: days.optional(),
     }),
     run: invoicesView,

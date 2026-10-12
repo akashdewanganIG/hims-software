@@ -17,6 +17,7 @@ export const MODULES = [
   "pharmacy",
   "lab",
   "beds",
+  "alerts",
   "operations",
   "wfm",
   "billing",
@@ -37,6 +38,7 @@ export const MODULE_LABEL: Record<Module, string> = {
   pharmacy: "Pharmacy",
   lab: "Lab Services",
   beds: "Bed Management",
+  alerts: "Alerts",
   operations: "Operations",
   wfm: "WFM",
   billing: "Billing",
@@ -57,6 +59,7 @@ export const MODULE_DESCRIPTION: Record<Module, string> = {
   pharmacy: "Prescription queue, dispensing, returns, stock and batches.",
   lab: "Test orders, sample collection, results and verification.",
   beds: "Bed board, reservations, housekeeping and occupancy.",
+  alerts: "Send and receive categorised staff alerts.",
   operations: "Live command centre across departments.",
   wfm: "Staff directory, rosters, shifts and duty status.",
   billing: "Bills, payments, deposits, discounts and refunds.",
@@ -212,6 +215,7 @@ export const LANDING_PAGES: Array<{
   { path: "/pharmacy/inventory", label: "Pharmacy stock", module: "pharmacy" },
   { path: "/lab", label: "Lab worklist", module: "lab" },
   { path: "/beds", label: "Bed board", module: "beds" },
+  { path: "/alerts", label: "Alerts", module: "alerts" },
   { path: "/operations", label: "Operations centre", module: "operations" },
   { path: "/wfm", label: "Staff", module: "wfm" },
   { path: "/wfm/roster", label: "Roster", module: "wfm" },
@@ -242,6 +246,7 @@ export function normaliseGrants(
   const granted = new Set<string>(actions.filter(isAction));
   const open = new Set<string>(modules.filter(isModule));
   open.add("dashboard");
+  open.add("alerts");
   for (const action of granted) open.add(ACTION_MODULE[action as Action]);
   return {
     modules: MODULES.filter(m => open.has(m)),

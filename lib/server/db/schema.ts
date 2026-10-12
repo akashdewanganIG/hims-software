@@ -217,13 +217,6 @@ export const bedStatusEnum = pgEnum("BedStatus", [
   "MAINTENANCE",
 ]);
 
-export const wardCategoryEnum = pgEnum("WardCategory", [
-  "GENERAL",
-  "SEMI_PRIVATE",
-  "PRIVATE",
-  "HDU",
-]);
-
 export const clinicalNoteTypeEnum = pgEnum("ClinicalNoteType", [
   "ADMISSION",
   "PROGRESS",
@@ -493,6 +486,7 @@ export const entityTypeEnum = pgEnum("EntityType", [
   "appointment",
   "encounter",
   "admission",
+  "ward",
   "bed",
   "prescription",
   "pharmacy",
@@ -505,6 +499,7 @@ export const entityTypeEnum = pgEnum("EntityType", [
   "roster",
   "user",
   "role",
+  "alert",
 ]);
 
 // ------------------------------------------------------------------
@@ -906,7 +901,7 @@ export const wards = pgTable(
     code: text("code").notNull(),
     name: text("name").notNull(),
     floor: integer("floor").notNull(),
-    category: wardCategoryEnum("category").notNull(),
+    category: text("category").notNull(),
     departmentId: text("department_id"),
     dailyRate: money("daily_rate").notNull(),
     /** { gender?, maxAge? } — single-gender wards, paediatric age limit. */
@@ -2031,8 +2026,35 @@ export const roster = pgTable(
 );
 
 // ------------------------------------------------------------------
-// Activity
+// Alerts & activity
 // ------------------------------------------------------------------
+
+/** Messages sent between hospital staff. */
+export const alerts = pgTable(
+  "alerts",
+  {
+    id: text("id").primaryKey(),
+    /** Insertion order, so reloaded tables keep the order rows were created in. */
+    seq: serial("seq"),
+    senderId: text("sender_id").notNull(),
+    recipientIds: text("recipient_ids").array().notNull(),
+    readByIds: text("read_by_ids").array().notNull(),
+    category: text("category").notNull(),
+    subject: text("subject").notNull(),
+    message: text("message").notNull(),
+    priority: priorityEnum("priority").notNull(),
+    createdAt: instant("created_at").notNull(),
+  },
+  (t): PgTableExtraConfigValue[] => [
+    index("alerts_created_at_idx").on(t.createdAt),
+    index("alerts_sender_id_idx").on(t.senderId),
+    foreignKey({
+      name: "alerts_sender_id_fkey",
+      columns: [t.senderId],
+      foreignColumns: [staff.id],
+    }),
+  ]
+);
 
 /** Append-only activity trail; feeds timelines and the operations feed. */
 export const activity = pgTable(
