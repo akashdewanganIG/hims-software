@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { isDeepStrictEqual } from "node:util";
 import { test } from "node:test";
 
+import type { LabOrderTarget } from "../features/lab/views";
 import { OperationError } from "../lib/ops/execute";
 import { prepareView } from "../lib/views/execute";
 import { VIEW_NAMES, type ViewName } from "../lib/views/registry";
@@ -46,6 +47,7 @@ const PARAMS: Record<ViewName, unknown> = {
   "beds.board": {},
   "lab.worklist": { stage: "all" },
   "lab.order": { id: h.db.labOrders[0]!.id },
+  "lab.orderTargets": { patientId: h.db.patients[0]!.id },
   "pharmacy.queue": { view: "open" },
   "pharmacy.prescription": { id: h.db.prescriptions[0]!.id },
   "pharmacy.inventory": {},
@@ -70,6 +72,7 @@ const PARAMS: Record<ViewName, unknown> = {
   "wfm.staff": {},
   "wfm.profile": { id: h.db.staff[0]!.id },
   "wfm.roster": { weekStart: isoDate(startOfWeek(h.now)) },
+  "wfm.attendance": { date: h.today },
   "search.records": { query: "ha" },
   "files.get": { id: h.db.files[0]!.id },
   "system.integrity": {},
@@ -204,6 +207,7 @@ test("alerts are visible only to their recipients and sender", () => {
   const adminUser = hospital.login("ADMINISTRATOR");
   const nurseUser = hospital.login("NURSE");
   const pharmacistUser = hospital.login("PHARMACIST");
+  const doctorUser = hospital.login("DOCTOR");
   const alert = hospital.run(adminUser, "alerts.send", {
     audience: "STAFF",
     audienceId: hospital.staffOf(nurseUser).id,
@@ -211,6 +215,7 @@ test("alerts are visible only to their recipients and sender", () => {
     subject: "Review isolation protocol",
     message: "Review the updated isolation protocol before the evening round.",
     priority: "HIGH",
+    acknowledgementRequired: true,
   });
   const view = (user: string, box: "inbox" | "sent") =>
     prepareView(hospital.db, user, "alerts.list", { box }).run(
@@ -220,6 +225,33 @@ test("alerts are visible only to their recipients and sender", () => {
   assert.ok(view(nurseUser, "inbox").some(row => row.id === alert.id));
   assert.ok(view(adminUser, "sent").some(row => row.id === alert.id));
   assert.ok(!view(pharmacistUser, "inbox").some(row => row.id === alert.id));
+
+  const row = (user: string, box: "inbox" | "sent") =>
+    (
+      prepareView(hospital.db, user, "alerts.list", { box }).run(
+        hospital.db,
+        hospital.now
+      ) as Array<{
+        id: string;
+        audienceLabel: string;
+        acknowledgedCount: number;
+        isAcknowledged: boolean;
+      }>
+    ).find(item => item.id === alert.id)!;
+  assert.match(row(adminUser, "sent").audienceLabel, /^Staff member:/);
+  assert.equal(row(adminUser, "sent").acknowledgedCount, 0);
+  const awaitingAcknowledgement = () =>
+    (
+      prepareView(hospital.db, nurseUser, "alerts.summary", {}).run(
+        hospital.db,
+        hospital.now
+      ) as { awaitingAcknowledgement: number }
+    ).awaitingAcknowledgement;
+  const awaitingBefore = awaitingAcknowledgement();
+  hospital.run(nurseUser, "alerts.acknowledge", { alertId: alert.id });
+  assert.equal(row(nurseUser, "inbox").isAcknowledged, true);
+  assert.equal(row(adminUser, "sent").acknowledgedCount, 1);
+  assert.equal(awaitingAcknowledgement(), awaitingBefore - 1);
 
   const categories = (user: string) =>
     (
@@ -239,13 +271,74 @@ test("alerts are visible only to their recipients and sender", () => {
     {}
   ).run(hospital.db, hospital.now) as {
     roles: Array<{ id: string; label: string }>;
-    staff: Array<{ id: string; label: string; roleId: string; role: string }>;
+    staff: Array<{
+      id: string;
+      label: string;
+      roleId: string;
+      role: string;
+      ipdAccess: boolean;
+      onDuty: boolean;
+    }>;
   };
   const nurseRole = composer.roles.find(role => role.id === "NURSE");
   const nurses = composer.staff.filter(staff => staff.roleId === "NURSE");
   assert.ok(nurseRole);
   assert.ok(nurses.length > 0);
   assert.ok(nurses.every(staff => staff.role === nurseRole.label));
+  assert.ok(nurses.every(staff => staff.ipdAccess));
+
+  const admission = hospital.db.admissions[0]!;
+  const linked = hospital.run(adminUser, "alerts.send", {
+    audience: "STAFF",
+    audienceId: hospital.staffOf(nurseUser).id,
+    category: "Clinical",
+    subject: "Linked inpatient escalation",
+    message:
+      "Review the patient and confirm the response plan before deadline.",
+    priority: "CRITICAL",
+    acknowledgementRequired: true,
+    patientId: admission.patientId,
+    admissionId: admission.id,
+    dueAt: new Date(hospital.now.getTime() + 60_000).toISOString(),
+    escalationRecipientId: hospital.staffOf(doctorUser).id,
+  });
+  const linkedInbox = (
+    prepareView(hospital.db, nurseUser, "alerts.list", { box: "inbox" }).run(
+      hospital.db,
+      hospital.now
+    ) as Array<{
+      id: string;
+      linkedAdmission?: { id: string };
+      status: string;
+    }>
+  ).find(item => item.id === linked.id)!;
+  assert.equal(linkedInbox.linkedAdmission?.id, admission.id);
+  assert.equal(linkedInbox.status, "OPEN");
+
+  hospital.advance(2);
+  assert.ok(view(doctorUser, "inbox").some(item => item.id === linked.id));
+  const adminSummary = prepareView(
+    hospital.db,
+    adminUser,
+    "alerts.summary",
+    {}
+  ).run(hospital.db, hospital.now) as { overdueSent: number };
+  assert.ok(adminSummary.overdueSent > 0);
+
+  hospital.run(nurseUser, "alerts.setState", {
+    alertId: linked.id,
+    status: "RESOLVED",
+  });
+  const resolved = prepareView(hospital.db, nurseUser, "alerts.list", {
+    box: "inbox",
+    status: "RESOLVED",
+  }).run(hospital.db, hospital.now) as Array<{ id: string }>;
+  const open = prepareView(hospital.db, nurseUser, "alerts.list", {
+    box: "inbox",
+    status: "OPEN",
+  }).run(hospital.db, hospital.now) as Array<{ id: string }>;
+  assert.ok(resolved.some(item => item.id === linked.id));
+  assert.ok(!open.some(item => item.id === linked.id));
 });
 
 test("the demo inbox includes every alert audience pattern", () => {
@@ -412,4 +505,55 @@ test("the sign-in directory mirrors User management", () => {
     active.length,
     "every active login appears exactly once"
   );
+});
+
+test("the lab desk files an order under the patient's admission or open visit", () => {
+  const stay = h.db.admissions.find(
+    a => a.status === "ACTIVE" || a.status === "ADMITTED"
+  )!;
+  const tech = h.login("LAB_TECHNICIAN");
+  const targets = read(
+    "lab.orderTargets",
+    { patientId: stay.patientId },
+    tech
+  ) as LabOrderTarget[];
+  // The live admission first, then open OPD visits — nothing closed.
+  assert.equal(targets[0]?.type, "IPD");
+  assert.equal(targets[0]?.code, stay.code);
+  assert.equal(targets[0]?.encounterId, stay.encounterId);
+  for (const target of targets) {
+    const encounter = h.db.encounters.find(e => e.id === target.encounterId)!;
+    assert.equal(encounter.patientId, stay.patientId);
+    if (target.type === "OPD") assert.equal(encounter.status, "OPEN");
+  }
+
+  const order = h.run(tech, "lab.order", {
+    encounterId: targets[0]!.encounterId,
+    testIds: [h.labTest("CBC").id],
+    priority: "ROUTINE",
+  });
+  assert.equal(order.admissionId, stay.id);
+
+  // The patient's record shows the order with the stay it belongs to.
+  const record = read("patients.record", { id: stay.patientId }) as {
+    labOrders: Array<{ id: string; orderedFor?: unknown }>;
+  };
+  assert.deepEqual(record.labOrders.find(o => o.id === order.id)?.orderedFor, {
+    type: "IPD",
+    code: stay.code,
+    href: `/ipd/${stay.id}`,
+    module: "ipd",
+  });
+
+  // Someone with nothing open is offered nothing to file under.
+  const idle = h.db.patients.find(
+    p =>
+      !h.db.admissions.some(
+        a => a.patientId === p.id && a.status !== "DISCHARGED"
+      ) &&
+      !h.db.encounters.some(
+        e => e.patientId === p.id && e.type === "OPD" && e.status === "OPEN"
+      )
+  )!;
+  assert.deepEqual(read("lab.orderTargets", { patientId: idle.id }, tech), []);
 });

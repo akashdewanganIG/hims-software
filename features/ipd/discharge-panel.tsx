@@ -11,6 +11,7 @@ import {
 } from "@/components/icons";
 import { DetailRow, Field } from "@/components/shared/page";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-provider";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { Input } from "@/components/ui/input";
@@ -47,6 +48,7 @@ export function DischargePanel({ detail }: { detail: AdmissionDetail }) {
   const [form, setForm] = React.useState<DischargeSummaryInput>(EMPTY);
   const [showMeds, setShowMeds] = React.useState(false);
   const [confirm, setConfirm] = React.useState(false);
+  const confirmAction = useConfirm();
   const canEdit =
     can("ipd.discharge") &&
     admission.status === "DISCHARGE_PENDING" &&
@@ -93,6 +95,15 @@ export function DischargePanel({ detail }: { detail: AdmissionDetail }) {
     () => ({ admissionId: admission.id }),
     { success: "Discharge reverted; admission is active again" }
   );
+  const confirmRevert = () =>
+    confirmAction({
+      title: "Revert to active treatment?",
+      description:
+        "Discharge is called off and treatment continues: a final summary returns to draft and billing must clear the discharge again later.",
+      confirmText: "Revert discharge",
+      variant: "destructive",
+      onConfirm: () => revert.mutateAsync(),
+    });
 
   if (
     admission.status !== "DISCHARGE_PENDING" &&
@@ -253,7 +264,7 @@ export function DischargePanel({ detail }: { detail: AdmissionDetail }) {
         <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-3">
           <Button
             variant="outline"
-            onClick={() => revert.mutate()}
+            onClick={confirmRevert}
             disabled={revert.isPending}
           >
             Revert to active
@@ -265,7 +276,19 @@ export function DischargePanel({ detail }: { detail: AdmissionDetail }) {
           >
             Save draft
           </Button>
-          <Button onClick={() => save.mutate(true)} disabled={save.isPending}>
+          <Button
+            onClick={() =>
+              confirmAction({
+                title: "Finalise the discharge summary?",
+                description:
+                  "The summary is saved as final and locked for editing; changing it later means reverting the discharge. Check the diagnosis, medication and follow-up first.",
+                confirmText: "Finalise summary",
+                icon: CheckCircle2,
+                onConfirm: () => save.mutateAsync(true),
+              })
+            }
+            disabled={save.isPending}
+          >
             Finalise summary
           </Button>
         </div>
@@ -320,7 +343,7 @@ export function DischargePanel({ detail }: { detail: AdmissionDetail }) {
           <div className="flex shrink-0 gap-2">
             <Button
               variant="outline"
-              onClick={() => revert.mutate()}
+              onClick={confirmRevert}
               disabled={revert.isPending}
             >
               Revert

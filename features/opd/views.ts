@@ -341,6 +341,40 @@ export function patientSearchView(
 /* Consultation (visit) record                                         */
 /* ------------------------------------------------------------------ */
 
+/** The OPD visit or inpatient admission an order was placed under. */
+export interface OrderContext {
+  type: "OPD" | "IPD";
+  /** The admission's code for IPD, the visit's for OPD. */
+  code: string;
+  href: string;
+  module: "opd" | "ipd";
+}
+
+export function orderContext(
+  db: Database,
+  encounterId: ID,
+  admissionId?: ID
+): OrderContext | undefined {
+  const admission = admissionId
+    ? db.admissions.find(a => a.id === admissionId)
+    : undefined;
+  if (admission)
+    return {
+      type: "IPD",
+      code: admission.code,
+      href: `/ipd/${admission.id}`,
+      module: "ipd",
+    };
+  const encounter = db.encounters.find(e => e.id === encounterId);
+  if (!encounter) return undefined;
+  return {
+    type: "OPD",
+    code: encounter.code,
+    href: `/opd/visits/${encounter.id}`,
+    module: "opd",
+  };
+}
+
 export interface LabOrderView {
   id: ID;
   code: string;
@@ -348,6 +382,7 @@ export interface LabOrderView {
   priority: LabOrder["priority"];
   orderedAt: string;
   orderedBy: string;
+  orderedFor?: OrderContext;
   sampleId?: string;
   verifiedAt?: string;
   tests: Array<{
@@ -371,6 +406,7 @@ export function labOrderView(db: Database, order: LabOrder): LabOrderView {
     priority: order.priority,
     orderedAt: order.orderedAt,
     orderedBy: staffName(getStaff(db, order.orderedById)),
+    orderedFor: orderContext(db, order.encounterId, order.admissionId),
     sampleId: order.sampleId,
     verifiedAt: order.verifiedAt,
     tests: labOrderTests(db, order.id).map(({ item, test }) => ({

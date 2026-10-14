@@ -11,6 +11,7 @@ import { allInvoiceTotals } from "../domain/billing";
 import { bedRestrictionReason, isInHouse } from "../domain/ipd";
 import { activeAdministrators } from "../domain/admin";
 import { LANDING_PAGES, isAction, isModule, resolveAccess } from "../rbac";
+import { ALERT_AUDIENCES, ALERT_STATES } from "./schema";
 import type { Database, FileOwner, InvoiceStatus, TableName } from "./schema";
 
 export interface IntegrityIssue {
@@ -130,7 +131,12 @@ export const REFERENCES: Ref[] = [
   ["roster", "staffId", "staff"],
   ["roster", "shiftId", "shifts", true],
   ["roster", "departmentId", "departments"],
+  ["attendance", "staffId", "staff"],
+  ["attendance", "recordedById", "staff"],
   ["alerts", "senderId", "staff"],
+  ["alerts", "patientId", "patients", true],
+  ["alerts", "admissionId", "admissions", true],
+  ["alerts", "escalationRecipientId", "staff", true],
   ["activity", "actorId", "staff"],
   ["activity", "patientId", "patients", true],
 ];
@@ -175,6 +181,7 @@ export const UNIQUE_KEYS: Array<[table: TableName, fields: string[]]> = [
   ["feedback", ["code"]],
   ["shifts", ["code"]],
   ["roster", ["staffId", "date"]],
+  ["attendance", ["staffId", "date"]],
 ];
 
 function expectedStatus(
@@ -261,13 +268,86 @@ export function checkIntegrity(db: Database): IntegrityIssue[] {
   }
   const staffIds = ids.get("staff")!;
   for (const alert of db.alerts) {
+    if (alert.audience && !ALERT_AUDIENCES.includes(alert.audience))
+      add("Unknown alert audience", `${alert.id} → ${alert.audience}`);
+    if (alert.audience && !alert.audienceLabel?.trim())
+      add("Alert target label missing", alert.id);
+    if (alert.audience === "ALL" && alert.audienceId)
+      add("All-staff alert has a target id", alert.id);
+    if (alert.audience && alert.audience !== "ALL" && !alert.audienceId)
+      add("Targeted alert missing target id", alert.id);
     if (!alert.recipientIds.length) add("Alert without recipients", alert.id);
     for (const recipientId of alert.recipientIds)
       if (!staffIds.has(recipientId))
         add("Broken alert recipient", `${alert.id} → ${recipientId}`);
+    const possibleRecipientIds = new Set([
+      ...alert.recipientIds,
+      ...(alert.escalationRecipientId ? [alert.escalationRecipientId] : []),
+    ]);
     for (const readerId of alert.readByIds) {
-      if (!alert.recipientIds.includes(readerId))
+      if (!possibleRecipientIds.has(readerId))
         add("Alert read by non-recipient", `${alert.id} → ${readerId}`);
+    }
+    const acknowledgements = alert.acknowledgements ?? [];
+    const acknowledgedStaffIds = new Set<string>();
+    for (const acknowledgement of acknowledgements) {
+      if (!possibleRecipientIds.has(acknowledgement.staffId))
+        add(
+          "Alert acknowledged by non-recipient",
+          `${alert.id} → ${acknowledgement.staffId}`
+        );
+      if (!alert.readByIds.includes(acknowledgement.staffId))
+        add(
+          "Acknowledged alert not marked read",
+          `${alert.id} → ${acknowledgement.staffId}`
+        );
+      if (acknowledgedStaffIds.has(acknowledgement.staffId))
+        add(
+          "Duplicate alert acknowledgement",
+          `${alert.id} → ${acknowledgement.staffId}`
+        );
+      acknowledgedStaffIds.add(acknowledgement.staffId);
+      if (Number.isNaN(Date.parse(acknowledgement.acknowledgedAt)))
+        add(
+          "Invalid alert acknowledgement time",
+          `${alert.id} → ${acknowledgement.acknowledgedAt}`
+        );
+    }
+    if (acknowledgements.length && !alert.acknowledgementRequired)
+      add("Unexpected alert acknowledgement", alert.id);
+    if (Boolean(alert.patientId) !== Boolean(alert.admissionId))
+      add("Incomplete patient alert link", alert.id);
+    if (alert.admissionId) {
+      const admission = db.admissions.find(row => row.id === alert.admissionId);
+      if (admission && admission.patientId !== alert.patientId)
+        add("Alert admission belongs to another patient", alert.id);
+    }
+    if (alert.dueAt && Number.isNaN(Date.parse(alert.dueAt)))
+      add("Invalid alert deadline", `${alert.id} → ${alert.dueAt}`);
+    if (alert.escalationRecipientId && !alert.dueAt)
+      add("Alert escalation has no deadline", alert.id);
+    if (alert.escalationRecipientId && !alert.escalationLabel?.trim())
+      add("Alert escalation label missing", alert.id);
+    const participantIds = new Set<string>();
+    for (const state of alert.participantStates ?? []) {
+      if (participantIds.has(state.staffId))
+        add(
+          "Duplicate alert participant state",
+          `${alert.id} → ${state.staffId}`
+        );
+      participantIds.add(state.staffId);
+      if (
+        state.staffId !== alert.senderId &&
+        !possibleRecipientIds.has(state.staffId)
+      )
+        add(
+          "Alert state belongs to non-participant",
+          `${alert.id} → ${state.staffId}`
+        );
+      if (!ALERT_STATES.includes(state.status))
+        add("Unknown alert participant state", `${alert.id} → ${state.status}`);
+      if (Number.isNaN(Date.parse(state.changedAt)))
+        add("Invalid alert state time", `${alert.id} → ${state.changedAt}`);
     }
   }
 

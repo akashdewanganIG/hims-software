@@ -16,7 +16,11 @@ import { Button } from "@/components/ui/button";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { Input } from "@/components/ui/input";
 import { Tag } from "@/components/ui/tag";
-import type { LabOrderView, PrescriptionView } from "@/features/opd/api";
+import type {
+  LabOrderView,
+  OrderContext,
+  PrescriptionView,
+} from "@/features/opd/api";
 import { useAction } from "@/lib/api/client";
 import {
   formatDateTime,
@@ -279,11 +283,49 @@ export function FlagMark({ flag }: { flag: ResultFlag }) {
   );
 }
 
-export function LabOrderCard({ order }: { order: LabOrderView }) {
+/** "IPD · ADM-…" or "OPD · OPD-…": where an order belongs, linked to it. */
+export function OrderContextLink({
+  context,
+  className,
+}: {
+  context: OrderContext | undefined;
+  className?: string;
+}) {
+  if (!context) return null;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-md border border-border bg-surface px-1.5 py-0.5 text-[0.6875rem] font-medium leading-none",
+        className
+      )}
+    >
+      <span className="text-muted-foreground">{context.type}</span>
+      <EntityLink
+        href={context.href}
+        module={context.module}
+        className="font-mono"
+      >
+        {context.code}
+      </EntityLink>
+    </span>
+  );
+}
+
+export function LabOrderCard({
+  order,
+  showContext = true,
+}: {
+  order: LabOrderView;
+  /** Off on the visit or admission page the order belongs to. */
+  showContext?: boolean;
+}) {
   const reported =
     order.status === "VERIFIED" || order.status === "RESULT_READY";
   return (
-    <article className="rounded-lg border border-border">
+    <article
+      data-fresh-id={order.id}
+      className="rounded-lg border border-border"
+    >
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-surface-subtle px-3 py-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="font-mono text-xs text-muted-foreground">
@@ -292,6 +334,7 @@ export function LabOrderCard({ order }: { order: LabOrderView }) {
           <span className="text-[0.8125rem] font-medium">
             {order.tests.map(t => t.name).join(", ")}
           </span>
+          {showContext ? <OrderContextLink context={order.orderedFor} /> : null}
         </div>
         <div className="flex items-center gap-1.5">
           {order.priority !== "ROUTINE" ? (
@@ -380,7 +423,7 @@ export function PrescriptionCard({
   cancellable?: boolean;
 }) {
   return (
-    <article className="rounded-lg border border-border">
+    <article data-fresh-id={rx.id} className="rounded-lg border border-border">
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-surface-subtle px-3 py-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="font-mono text-xs text-muted-foreground">

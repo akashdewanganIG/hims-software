@@ -22,6 +22,27 @@
       "when": 1791833661351,
       "tag": "0002_lowly_whiplash",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791956988522,
+      "tag": "0003_alert_audits_acknowledgements",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791961438452,
+      "tag": "0004_known_grandmaster",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791971565653,
+      "tag": "0005_staff_attendance",
+      "breakpoints": true
     }
   ]
 }

@@ -28,6 +28,7 @@ import {
   StatusBadge,
 } from "@/components/shared/page";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-provider";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { Input } from "@/components/ui/input";
 import { SearchInput } from "@/components/ui/search-input";
@@ -308,6 +309,7 @@ function StaffSheet({
   onClose: () => void;
 }) {
   const { can, staff: me } = useSession();
+  const confirm = useConfirm();
   const { data } = useStaffProfile(id);
   const [editOpen, setEditOpen] = React.useState(false);
   const [photoOpen, setPhotoOpen] = React.useState(false);
@@ -421,6 +423,64 @@ function StaffSheet({
                   ))}
                 </div>
               ) : null}
+              <div className="rounded-lg border border-border bg-surface-subtle p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                      Attendance
+                    </p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <StatusBadge
+                        status={data.todayAttendance?.status ?? "NOT_MARKED"}
+                      />
+                      <span className="text-xs text-muted-foreground">
+                        Today
+                      </span>
+                    </div>
+                  </div>
+                  <Button size="sm" variant="outline" asChild>
+                    <Link href={`/wfm/attendance?staff=${data.staff.id}`}>
+                      View attendance
+                    </Link>
+                  </Button>
+                </div>
+                <div className="mt-3 grid grid-cols-4 gap-2 text-center">
+                  <div>
+                    <p className="text-base font-semibold tabular-nums">
+                      {data.attendance30.marked}
+                    </p>
+                    <p className="text-[0.6875rem] text-muted-foreground">
+                      Marked
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-base font-semibold tabular-nums">
+                      {data.attendance30.present}
+                    </p>
+                    <p className="text-[0.6875rem] text-muted-foreground">
+                      Present
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-base font-semibold tabular-nums">
+                      {data.attendance30.late}
+                    </p>
+                    <p className="text-[0.6875rem] text-muted-foreground">
+                      Late
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-base font-semibold tabular-nums">
+                      {data.attendance30.rate === null
+                        ? "—"
+                        : `${data.attendance30.rate}%`}
+                    </p>
+                    <p className="text-[0.6875rem] text-muted-foreground">
+                      30-day rate
+                    </p>
+                  </div>
+                </div>
+              </div>
               <div>
                 <p className="mb-1.5 text-[0.6875rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
                   Next 7 days
@@ -450,7 +510,9 @@ function StaffSheet({
                           ? d.shift
                           : d.status === "LEAVE"
                             ? "Leave"
-                            : "Off"}
+                            : d.status === "OFF"
+                              ? "Off"
+                              : "Not set"}
                       </p>
                     </div>
                   ))}
@@ -464,14 +526,33 @@ function StaffSheet({
                   Edit details
                 </Button>
                 {data.staff.status !== "ACTIVE" ? (
-                  <Button onClick={() => setStatus.mutate("ACTIVE")}>
+                  <Button
+                    onClick={() =>
+                      confirm({
+                        title: `Mark ${data.name} active?`,
+                        description:
+                          "They return to duty: they can sign in and act again, and count as on duty for rostered shifts.",
+                        confirmText: "Mark active",
+                        icon: UserCheck,
+                        onConfirm: () => setStatus.mutateAsync("ACTIVE"),
+                      })
+                    }
+                  >
                     Mark active
                   </Button>
                 ) : null}
                 {data.staff.status === "ACTIVE" ? (
                   <Button
                     variant="outline"
-                    onClick={() => setStatus.mutate("ON_LEAVE")}
+                    onClick={() =>
+                      confirm({
+                        title: `Mark ${data.name} on leave?`,
+                        description:
+                          "They stop counting as on duty for their rostered shifts until marked active again.",
+                        confirmText: "Mark on leave",
+                        onConfirm: () => setStatus.mutateAsync("ON_LEAVE"),
+                      })
+                    }
                   >
                     Mark on leave
                   </Button>
@@ -481,7 +562,16 @@ function StaffSheet({
                   <Button
                     variant="outline"
                     className="text-error-foreground"
-                    onClick={() => setStatus.mutate("INACTIVE")}
+                    onClick={() =>
+                      confirm({
+                        title: `Deactivate ${data.name}?`,
+                        description:
+                          "They can no longer sign in or act, drop out of rosters and alerts, and are no longer offered for new work. You can mark them active again later.",
+                        confirmText: "Deactivate",
+                        variant: "destructive",
+                        onConfirm: () => setStatus.mutateAsync("INACTIVE"),
+                      })
+                    }
                   >
                     Deactivate
                   </Button>

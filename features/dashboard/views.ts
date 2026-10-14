@@ -757,7 +757,7 @@ function moduleHints(ops: Snapshot, opens: (m: Module) => boolean) {
     "/pharmacy": `${pluralize(ops.pharmacy.pending, "prescription")} to dispense`,
     "/lab": `${pluralize(ops.lab.collection + ops.lab.processing + ops.lab.verification, "order")} in progress`,
     "/beds": `${pluralize(ops.beds.AVAILABLE, "bed")} free · ${ops.beds.occupancy.toFixed(0)}% occupied`,
-    "/operations": `${pluralize(ops.alerts.length, "alert")} right now`,
+    "/operations": `${pluralize(ops.alerts.length, "issue")} needing attention`,
     "/wfm": `${pluralize(ops.staff.doctors, "doctor")} · ${pluralize(ops.staff.nurses, "nurse")} on duty`,
     "/billing": "Bills, payments and refunds",
     "/mrd": "Case sheets and case files",

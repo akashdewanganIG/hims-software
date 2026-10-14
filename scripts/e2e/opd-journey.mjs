@@ -7,6 +7,7 @@
 //   npm run e2e:opd        (screenshots go to $E2E_SHOTS, default ./.e2e)
 import {
   BASE,
+  confirmAction,
   expectPdf,
   launch,
   registerThroughPicker,
@@ -109,6 +110,7 @@ await step("dispense", async () => {
   await row.getByRole("button", { name: "Dispense" }).click();
   const sheet = page.getByRole("dialog");
   await sheet.getByRole("button", { name: "Dispense", exact: true }).click();
+  await confirmAction(page, /^Dispense \d+ items? to /, "Dispense");
   await toast("stock and bill updated");
 });
 
@@ -131,6 +133,7 @@ await step("lab to verified", async () => {
   await sheet.getByRole("button", { name: "Save results" }).click();
   await toast("awaiting verification");
   await sheet.getByRole("button", { name: /Verify/ }).click();
+  await confirmAction(page, /^Verify and release /, "Verify & release");
   await toast("released to the patient record");
 });
 

@@ -532,7 +532,32 @@
   }
 }
 
+/*
+ * A record just added (lib/fresh.ts sets data-fresh for ~3 s): three green
+ * pulses from and back to its own background, so it is found at a glance.
+ */
+@keyframes fresh-flash {
+  50% {
+    background-color: color-mix(in srgb, var(--success) 20%, var(--card));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 45%, transparent);
+  }
+}
+
+[data-fresh] {
+  animation: fresh-flash 1s ease-in-out 3;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  /* No pulsing: a steady green tint for the same few seconds instead. */
+  [data-fresh] {
+    background-color: color-mix(
+      in srgb,
+      var(--success) 16%,
+      var(--card)
+    ) !important;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 40%, transparent);
+  }
+
   *,
   *::before,
   *::after {

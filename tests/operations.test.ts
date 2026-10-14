@@ -2015,12 +2015,14 @@ test("beds: administrators manage custom ward categories and rooms", () => {
   h.assertShadowMatches();
 });
 
-test("alerts: staff send detailed alerts and recipients mark them read", () => {
+test("alerts: targeting, reading and acknowledgement stay distinct", () => {
   const h = new Hospital();
   const admin = h.login("ADMINISTRATOR");
   const nurse = h.login("NURSE");
   const pharmacist = h.login("PHARMACIST");
+  const doctor = h.login("DOCTOR");
   const nurseStaff = h.staffOf(nurse);
+  const doctorStaff = h.staffOf(doctor);
   const alert = h.run(admin, "alerts.send", {
     audience: "STAFF",
     audienceId: nurseStaff.id,
@@ -2029,12 +2031,26 @@ test("alerts: staff send detailed alerts and recipients mark them read", () => {
     message:
       "Isolation room ISO-1 is ready. Confirm PPE availability before transfer.",
     priority: "HIGH",
+    acknowledgementRequired: true,
   });
+  assert.equal(alert.audience, "STAFF");
+  assert.equal(alert.audienceId, nurseStaff.id);
+  assert.equal(
+    alert.audienceLabel,
+    `Staff member: ${nurseStaff.firstName} ${nurseStaff.lastName}`
+  );
   assert.deepEqual(alert.recipientIds, [nurseStaff.id]);
   assert.deepEqual(alert.readByIds, []);
+  assert.deepEqual(alert.acknowledgements, []);
   h.refuse(
     pharmacist,
     "alerts.markRead",
+    { alertId: alert.id },
+    { message: /not sent to you/ }
+  );
+  h.refuse(
+    pharmacist,
+    "alerts.acknowledge",
     { alertId: alert.id },
     { message: /not sent to you/ }
   );
@@ -2042,6 +2058,104 @@ test("alerts: staff send detailed alerts and recipients mark them read", () => {
   assert.deepEqual(h.db.alerts.find(row => row.id === alert.id)!.readByIds, [
     nurseStaff.id,
   ]);
+  h.run(nurse, "alerts.acknowledge", { alertId: alert.id });
+  h.run(nurse, "alerts.acknowledge", { alertId: alert.id });
+  const stored = h.db.alerts.find(row => row.id === alert.id)!;
+  assert.equal(stored.acknowledgements.length, 1);
+  assert.equal(stored.acknowledgements[0]!.staffId, nurseStaff.id);
+  assert.match(
+    stored.acknowledgements[0]!.acknowledgedAt,
+    /^\d{4}-\d{2}-\d{2}T/
+  );
+
+  const informational = h.run(admin, "alerts.send", {
+    audience: "STAFF",
+    audienceId: nurseStaff.id,
+    category: "General",
+    subject: "Cafeteria timing",
+    message: "The staff cafeteria closes at 8 PM today.",
+    priority: "LOW",
+  });
+  h.refuse(
+    nurse,
+    "alerts.acknowledge",
+    { alertId: informational.id },
+    { message: /does not require acknowledgement/ }
+  );
+
+  const admission = h.db.admissions[0]!;
+  const patientAlertInput = {
+    audience: "STAFF" as const,
+    category: "Clinical",
+    subject: "Review inpatient observations",
+    message: "Review the latest observations and document the response plan.",
+    priority: "HIGH" as const,
+    acknowledgementRequired: true,
+    patientId: admission.patientId,
+    admissionId: admission.id,
+    dueAt: new Date(h.now.getTime() + 5 * 60_000).toISOString(),
+    escalationRecipientId: doctorStaff.id,
+  };
+  h.refuse(
+    admin,
+    "alerts.send",
+    {
+      ...patientAlertInput,
+      audienceId: h.staffOf(pharmacist).id,
+    },
+    { message: /IPD access/ }
+  );
+  const patientAlert = h.run(admin, "alerts.send", {
+    ...patientAlertInput,
+    audienceId: nurseStaff.id,
+  });
+  assert.equal(patientAlert.patientId, admission.patientId);
+  assert.equal(patientAlert.admissionId, admission.id);
+  assert.equal(patientAlert.escalationRecipientId, doctorStaff.id);
+  h.refuse(
+    doctor,
+    "alerts.markRead",
+    { alertId: patientAlert.id },
+    { message: /not sent to you/ }
+  );
+  h.advance(6);
+  h.run(doctor, "alerts.markRead", { alertId: patientAlert.id });
+  h.run(nurse, "alerts.setState", {
+    alertId: patientAlert.id,
+    status: "RESOLVED",
+  });
+  h.run(nurse, "alerts.setState", {
+    alertId: patientAlert.id,
+    status: "ARCHIVED",
+  });
+  h.run(nurse, "alerts.setState", {
+    alertId: patientAlert.id,
+    status: "OPEN",
+  });
+  assert.deepEqual(
+    h.db.alerts
+      .find(row => row.id === patientAlert.id)!
+      .participantStates.find(state => state.staffId === nurseStaff.id)?.status,
+    "OPEN"
+  );
+  h.refuse(
+    pharmacist,
+    "alerts.setState",
+    { alertId: patientAlert.id, status: "ARCHIVED" },
+    { message: /does not belong/ }
+  );
+  h.run(admin, "admin.updateUser", {
+    userId: nurse,
+    customAccess: true,
+    modules: ["ehr"],
+    actions: [],
+  });
+  h.refuse(
+    nurse,
+    "alerts.markRead",
+    { alertId: patientAlert.id },
+    { message: /no longer have access/ }
+  );
   h.assertIntact();
   h.assertShadowMatches();
 });
@@ -2320,6 +2434,41 @@ test("workforce: staff with logins, roster, week copy, status changes", () => {
     r => r.date === addDaysIso(monday, 7) && r.departmentId === gen.id
   );
   assert.ok(next.length > 0);
+
+  const attendance = h.run(ops, "wfm.setAttendance", {
+    staffId: nurse.id,
+    date: h.today,
+    status: "PRESENT",
+    checkInAt: h.at(8, 4).toISOString(),
+    checkOutAt: h.at(14, 2).toISOString(),
+    note: "Morning duty",
+  });
+  assert.equal(attendance.status, "PRESENT");
+  assert.equal(attendance.recordedById, h.staffOf(ops).id);
+  const corrected = h.run(ops, "wfm.setAttendance", {
+    staffId: nurse.id,
+    date: h.today,
+    status: "LATE",
+    checkInAt: h.at(8, 22).toISOString(),
+  });
+  assert.equal(corrected.id, attendance.id, "the daily record is updated");
+  assert.equal(corrected.status, "LATE");
+  h.refuse(
+    ops,
+    "wfm.setAttendance",
+    {
+      staffId: nurse.id,
+      date: addDaysIso(h.today, 1),
+      status: "PRESENT",
+    },
+    { message: /future date/ }
+  );
+  h.refuse(
+    h.login("NURSE"),
+    "wfm.setAttendance",
+    { staffId: nurse.id, date: h.today, status: "ABSENT" },
+    { code: "FORBIDDEN" }
+  );
 
   // The new doctor takes bookings; deactivation is refused while booked.
   const patient = h.run(

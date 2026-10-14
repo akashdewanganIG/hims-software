@@ -340,7 +340,11 @@ export default function VisitPage() {
                 />
               ) : null}
               {visit.labOrders.map(order => (
-                <LabOrderCard key={order.id} order={order} />
+                <LabOrderCard
+                  key={order.id}
+                  order={order}
+                  showContext={false}
+                />
               ))}
               {!visit.labOrders.length && !showLab ? (
                 <p className="py-3 text-center text-sm text-muted-foreground">

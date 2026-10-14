@@ -20,6 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useFreshIds } from "@/lib/fresh";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_PAGE_SIZE = 12;
@@ -100,6 +101,15 @@ export function DataTable<T>({
   React.useEffect(() => {
     if (page > totalPages) setPage(1);
   }, [page, totalPages]);
+
+  // A record just added may sort onto another page: open that page, so it
+  // can be scrolled to and highlighted.
+  const fresh = useFreshIds();
+  React.useEffect(() => {
+    if (!fresh.size) return;
+    const index = sorted.findIndex(row => fresh.has(keyOf(row)));
+    if (index >= 0) setPage(Math.floor(index / pageSize) + 1);
+  }, [fresh, sorted, keyOf, pageSize]);
   const pageRows = sorted.slice((page - 1) * pageSize, page * pageSize);
 
   const toggleSort = (column: Column<T>) => {
@@ -254,6 +264,7 @@ export function DataTable<T>({
               pageRows.map(row => (
                 <tr
                   key={keyOf(row)}
+                  data-fresh-id={keyOf(row)}
                   tabIndex={onRowClick ? 0 : undefined}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
                   onKeyDown={

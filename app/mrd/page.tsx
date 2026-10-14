@@ -32,6 +32,7 @@ import {
 } from "@/components/shared/page";
 import { Button } from "@/components/ui/button";
 import { CategorySwitcher } from "@/components/ui/category-switcher";
+import { useConfirm } from "@/components/ui/confirm-provider";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { Input } from "@/components/ui/input";
@@ -291,6 +292,7 @@ function RecordSheet({
   onClose: () => void;
 }) {
   const { can, staff } = useSession();
+  const confirm = useConfirm();
   const { data } = useMedicalRecord(id);
   const [dialog, setDialog] = React.useState<
     null | "return" | "archive" | "upload"
@@ -472,7 +474,8 @@ function RecordSheet({
                       {data.documents.map(d => (
                         <li
                           key={d.id}
-                          className="flex items-center justify-between gap-2"
+                          data-fresh-id={d.id}
+                          className="flex items-center justify-between gap-2 rounded-md"
                         >
                           <span className="min-w-0 truncate">
                             {d.kind === "DISCHARGE_SUMMARY" &&
@@ -586,7 +589,16 @@ function RecordSheet({
                       Return for correction
                     </Button>
                     <Button
-                      onClick={() => review.mutate()}
+                      onClick={() =>
+                        confirm({
+                          title: `Mark ${rec.code} complete?`,
+                          description:
+                            "You confirm the case file has been reviewed and nothing is missing. A complete record can no longer be returned for correction; its next step is archiving.",
+                          confirmText: "Mark complete",
+                          icon: CheckCheck,
+                          onConfirm: () => review.mutateAsync(),
+                        })
+                      }
                       disabled={review.isPending}
                     >
                       Mark complete

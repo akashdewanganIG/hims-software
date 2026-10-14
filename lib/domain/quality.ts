@@ -44,14 +44,16 @@ function note(
   text: string,
   kind: "NOTE" | "STATUS"
 ) {
+  const id = newId(tx, "cmn");
   tx.db.complaintNotes.push({
-    id: newId(tx, "cmn"),
+    id,
     complaintId: complaint.id,
     at: nowIso(tx),
     byId: tx.actorId,
     text,
     kind,
   });
+  return id;
 }
 
 export function logComplaint(
@@ -151,9 +153,9 @@ export function startComplaint(tx: Tx, complaintId: ID) {
 export function addComplaintNote(tx: Tx, complaintId: ID, text: string) {
   const complaint = must(tx.db.complaints, complaintId, "Complaint");
   assert(complaint.status !== "CLOSED", "This complaint is closed.");
-  note(tx, complaint, requireText(text, "Note"), "NOTE");
+  const noteId = note(tx, complaint, requireText(text, "Note"), "NOTE");
   touch(tx, complaint);
-  return complaint;
+  return { ...complaint, noteId };
 }
 
 export function resolveComplaint(tx: Tx, complaintId: ID, resolution: string) {

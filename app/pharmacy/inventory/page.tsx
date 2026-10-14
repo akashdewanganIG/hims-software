@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { CategorySwitcher } from "@/components/ui/category-switcher";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useConfirm } from "@/components/ui/confirm-provider";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { Input } from "@/components/ui/input";
@@ -327,6 +328,7 @@ function MedicineSheet({
   onEdit: (row: InventoryRow) => void;
 }) {
   const { can } = useSession();
+  const confirm = useConfirm();
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const remove = useAction(
     "pharmacy.deleteMedicine",
@@ -407,6 +409,7 @@ function MedicineSheet({
                       {medicine.batches.map(b => (
                         <tr
                           key={b.id}
+                          data-fresh-id={b.id}
                           className="border-b border-border/80 last:border-0"
                         >
                           <td className="px-3 py-2 font-mono text-xs">
@@ -437,7 +440,15 @@ function MedicineSheet({
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => writeOff.mutate(b.id)}
+                                onClick={() =>
+                                  confirm({
+                                    title: `Write off batch ${b.batchNumber}?`,
+                                    description: `All ${formatNumber(b.quantityOnHand)} ${medicine.unit}(s) left in this expired batch are removed from stock as a loss. This cannot be undone.`,
+                                    confirmText: "Write off",
+                                    variant: "destructive",
+                                    onConfirm: () => writeOff.mutateAsync(b.id),
+                                  })
+                                }
                               >
                                 Write off
                               </Button>

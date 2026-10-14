@@ -673,7 +673,7 @@ export function patientRecordPdf(record: PatientRecord, photo?: string) {
               .map(order =>
                 labResults(
                   order,
-                  `${order.code} · ${formatDateTime(order.orderedAt)} · ${order.orderedBy}${order.status === "RESULT_READY" ? " · preliminary" : ""}`
+                  `${order.code}${order.orderedFor ? ` (${order.orderedFor.type} ${order.orderedFor.code})` : ""} · ${formatDateTime(order.orderedAt)} · ${order.orderedBy}${order.status === "RESULT_READY" ? " · preliminary" : ""}`
                 )
               )
           : [{ text: "No reported lab results.", style: "note" }]

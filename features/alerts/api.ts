@@ -8,6 +8,7 @@ export function useAlerts(params: {
   category?: string;
   priority?: string;
   unreadOnly?: boolean;
+  status?: "OPEN" | "RESOLVED" | "ARCHIVED";
 }) {
   return useView("alerts.list", params, { refetchInterval: 15_000 });
 }

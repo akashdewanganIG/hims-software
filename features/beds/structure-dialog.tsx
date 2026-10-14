@@ -204,6 +204,7 @@ export function StructureDialog({
                   {wards.map(ward => (
                     <div
                       key={ward.id}
+                      data-fresh-id={ward.id}
                       className="rounded-xl border border-border bg-card p-3 shadow-sm"
                     >
                       <div className="flex items-start justify-between gap-3">
@@ -413,6 +414,7 @@ export function StructureDialog({
                     {currentWard?.rooms.map(room => (
                       <div
                         key={room.id}
+                        data-fresh-id={room.id}
                         className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-3 shadow-sm"
                       >
                         <div>

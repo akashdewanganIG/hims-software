@@ -26,6 +26,7 @@ import {
 } from "@/components/shared/page";
 import { Button } from "@/components/ui/button";
 import { CategorySwitcher } from "@/components/ui/category-switcher";
+import { useConfirm } from "@/components/ui/confirm-provider";
 import { MagnitudeBars, RatioGauge } from "@/components/ui/chart-primitives";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { Input } from "@/components/ui/input";
@@ -286,6 +287,7 @@ export default function BedsPage() {
                 return (
                   <section
                     key={ward.id}
+                    data-fresh-id={ward.id}
                     aria-labelledby={`ward-${ward.id}`}
                     className="p-3"
                   >
@@ -314,7 +316,8 @@ export default function BedsPage() {
                         return (
                           <div
                             key={room.id}
-                            className="flex flex-col gap-2 sm:flex-row sm:items-stretch"
+                            data-fresh-id={room.id}
+                            className="flex flex-col gap-2 rounded-lg sm:flex-row sm:items-stretch"
                           >
                             <div className="flex w-16 shrink-0 items-center text-xs font-medium text-muted-foreground">
                               {ward.code === "HDU"
@@ -492,6 +495,7 @@ function BedSheet({
   onAdmit: (bedId: string) => void;
 }) {
   const { can } = useSession();
+  const confirm = useConfirm();
   const [transferOpen, setTransferOpen] = React.useState(false);
   const [noteFor, setNoteFor] = React.useState<
     "MAINTENANCE" | "RESERVE" | null
@@ -518,6 +522,18 @@ function BedSheet({
     { success: `Bed ${bed?.code} reserved` }
   );
   const manage = can("beds.housekeeping");
+  const confirmStatus = (
+    status: "AVAILABLE" | "CLEANING",
+    title: string,
+    description: string,
+    confirmText: string
+  ) =>
+    confirm({
+      title,
+      description,
+      confirmText,
+      onConfirm: () => housekeeping.mutateAsync({ status }),
+    });
 
   return (
     <>
@@ -668,7 +684,14 @@ function BedSheet({
                 {bed.status === "RESERVED" && !bed.admission && manage ? (
                   <Button
                     variant="outline"
-                    onClick={() => housekeeping.mutate({ status: "AVAILABLE" })}
+                    onClick={() =>
+                      confirmStatus(
+                        "AVAILABLE",
+                        `Release the reservation on bed ${bed.code}?`,
+                        `The hold${bed.note ? ` (${bed.note})` : ""} is dropped and the bed becomes available for any admission.`,
+                        "Release reservation"
+                      )
+                    }
                   >
                     Release reservation
                   </Button>
@@ -691,7 +714,12 @@ function BedSheet({
                     <Button
                       variant="outline"
                       onClick={() =>
-                        housekeeping.mutate({ status: "CLEANING" })
+                        confirmStatus(
+                          "CLEANING",
+                          `Send bed ${bed.code} for cleaning?`,
+                          "The bed is taken out of the available pool and cannot be admitted to until housekeeping marks it available again.",
+                          "Mark cleaning"
+                        )
                       }
                     >
                       <Broom className="size-4" />
@@ -712,7 +740,16 @@ function BedSheet({
                 {(bed.status === "CLEANING" || bed.status === "MAINTENANCE") &&
                 manage ? (
                   <Button
-                    onClick={() => housekeeping.mutate({ status: "AVAILABLE" })}
+                    onClick={() =>
+                      confirmStatus(
+                        "AVAILABLE",
+                        `Mark bed ${bed.code} available?`,
+                        bed.status === "CLEANING"
+                          ? "Confirm the bed has been cleaned and made up. It can then be allotted to the next admission straight away."
+                          : "Confirm the maintenance issue is fixed. The bed can then be allotted to the next admission straight away.",
+                        "Mark available"
+                      )
+                    }
                   >
                     Mark available
                   </Button>

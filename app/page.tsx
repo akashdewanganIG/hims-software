@@ -4,8 +4,6 @@ import * as React from "react";
 import Link from "next/link";
 
 import {
-  AlertCircle,
-  AlertTriangle,
   BedIcon,
   ChatText,
   FolderOpen,
@@ -32,6 +30,7 @@ import { CardActionButton } from "@/components/ui/card-action-button";
 import { LineChart } from "@/components/ui/line-chart";
 import { MetricCard } from "@/components/ui/metric-card";
 import { NavCard } from "@/components/ui/nav-card";
+import { SEVERITY_ICON, SEVERITY_TEXT } from "@/components/ui/severity";
 import { SkeletonMetricRow } from "@/components/ui/skeleton";
 import { Tag } from "@/components/ui/tag";
 import { useDashboard, useDashboardTrend } from "@/features/dashboard/api";
@@ -40,17 +39,6 @@ import { NAVIGATION } from "@/lib/navigation";
 import type { Module } from "@/lib/rbac";
 import { useSession } from "@/lib/session";
 import { cn } from "@/lib/utils";
-
-const LEVEL_ICON = {
-  critical: AlertCircle,
-  warning: AlertTriangle,
-  info: Info,
-} as const;
-const LEVEL_TEXT = {
-  critical: "text-error-foreground",
-  warning: "text-warning-foreground",
-  info: "text-info-foreground",
-} as const;
 
 /** A dashboard card in the wrapping "My work" row. */
 const CARD = "min-w-0 flex-[1_1_20rem]";
@@ -215,7 +203,7 @@ export default function DashboardPage() {
         <Panel
           className={CARD}
           title="Needs attention"
-          description="Alerts from the areas you work in."
+          description="Live issues from the areas you work in."
           footerAction={
             canAccess("operations") ? (
               <CardActionButton href="/operations">
@@ -230,7 +218,7 @@ export default function DashboardPage() {
             <div className="@container">
               <ul className="grid grid-cols-1 gap-2 @2xl:grid-cols-2 @2xl:gap-x-6">
                 {data.alerts.slice(0, 6).map(alert => {
-                  const Icon = LEVEL_ICON[alert.level];
+                  const Icon = SEVERITY_ICON[alert.level];
                   return (
                     <li key={alert.id}>
                       <Link
@@ -240,7 +228,7 @@ export default function DashboardPage() {
                         <Icon
                           className={cn(
                             "mt-0.5 size-4 shrink-0",
-                            LEVEL_TEXT[alert.level]
+                            SEVERITY_TEXT[alert.level]
                           )}
                         />
                         <span className="min-w-0">

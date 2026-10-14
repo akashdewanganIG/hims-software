@@ -24,3 +24,13 @@ export function useRoster(filters: {
 }) {
   return useView("wfm.roster", filters);
 }
+
+export function useAttendance(filters: {
+  date: string;
+  q?: string;
+  departmentId?: string;
+  status?: string;
+  staffId?: string;
+}) {
+  return useView("wfm.attendance", filters);
+}

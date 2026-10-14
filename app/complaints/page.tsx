@@ -40,6 +40,7 @@ import {
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { CategorySwitcher } from "@/components/ui/category-switcher";
+import { useConfirm } from "@/components/ui/confirm-provider";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { Input } from "@/components/ui/input";
@@ -382,6 +383,7 @@ function ComplaintSheet({
     (t: string) => ({ complaintId: id!, resolution: t }),
     { success: "Complaint resolved", onSuccess: () => setDialog(null) }
   );
+  const confirm = useConfirm();
   const close = useAction("complaint.close", () => ({ complaintId: id! }), {
     success: "Complaint closed",
   });
@@ -524,7 +526,11 @@ function ComplaintSheet({
                   {data.photos.length ? (
                     <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                       {data.photos.map(p => (
-                        <li key={p.id} className="relative">
+                        <li
+                          key={p.id}
+                          data-fresh-id={p.id}
+                          className="relative rounded-lg"
+                        >
                           <StoredThumbnail
                             file={p}
                             onOpen={() => setViewing(p)}
@@ -662,7 +668,19 @@ function ComplaintSheet({
                   </Button>
                 ) : null}
                 {manage && c.status === "RESOLVED" ? (
-                  <Button onClick={() => close.mutate()}>Close</Button>
+                  <Button
+                    onClick={() =>
+                      confirm({
+                        title: `Close complaint ${c.code}?`,
+                        description:
+                          "Closing confirms the resolution was accepted and ends work on this complaint. Notes and edits stop; it can only be reopened with a reason.",
+                        confirmText: "Close complaint",
+                        onConfirm: () => close.mutateAsync(),
+                      })
+                    }
+                  >
+                    Close
+                  </Button>
                 ) : null}
                 {manage && c.status === "CLOSED" ? (
                   <Button

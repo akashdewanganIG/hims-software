@@ -421,6 +421,7 @@ function RolesGrid({
         return (
           <button
             key={role.id}
+            data-fresh-id={role.id}
             type="button"
             onClick={() => onOpen(role.id)}
             className="group flex min-w-0 flex-col rounded-xl border border-border bg-card p-4 text-left shadow-xs outline-none transition-[border-color,box-shadow] hover:border-border-strong hover:shadow-sm focus-visible:ring-2 focus-visible:ring-ring/30"

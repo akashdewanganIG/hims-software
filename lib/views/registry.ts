@@ -38,7 +38,11 @@ import {
   admissionsView,
   freeBedsView,
 } from "@/features/ipd/views";
-import { labOrderDetailView, labWorklistView } from "@/features/lab/views";
+import {
+  labOrderDetailView,
+  labOrderTargetsView,
+  labWorklistView,
+} from "@/features/lab/views";
 import {
   medicalRecordView,
   medicalRecordsView,
@@ -75,6 +79,7 @@ import {
   patientEncountersView,
 } from "@/features/quality/views";
 import {
+  attendanceView,
   rosterView,
   staffListView,
   staffProfileView,
@@ -115,6 +120,7 @@ export const VIEWS = {
       category: filter,
       priority: filter,
       unreadOnly: z.boolean().optional(),
+      status: z.enum(["OPEN", "RESOLVED", "ARCHIVED"]).optional(),
     }),
     run: alertsView,
   }),
@@ -126,7 +132,7 @@ export const VIEWS = {
   "alerts.composer": view({
     modules: ["alerts"],
     params: none,
-    run: (db, _now, _params, actor) => alertComposerView(db, actor),
+    run: (db, now, _params, actor) => alertComposerView(db, now, actor),
   }),
 
   /* Dashboard & performance ---------------------------------------- */
@@ -277,6 +283,11 @@ export const VIEWS = {
     params: z.object({ id: maybeId }),
     run: labOrderDetailView,
   }),
+  "lab.orderTargets": view({
+    modules: ["lab"],
+    params: z.object({ patientId: id }),
+    run: labOrderTargetsView,
+  }),
   "pharmacy.queue": view({
     modules: ["pharmacy"],
     params: z.object({ view: z.enum(["open", "today", "all"]), q: filter }),
@@ -425,6 +436,17 @@ export const VIEWS = {
     modules: ["wfm"],
     params: z.object({ weekStart: date, departmentId: filter, role: filter }),
     run: rosterView,
+  }),
+  "wfm.attendance": view({
+    modules: ["wfm"],
+    params: z.object({
+      date,
+      q: filter,
+      departmentId: filter,
+      status: filter,
+      staffId: filter,
+    }),
+    run: attendanceView,
   }),
 
   /* Administration ------------------------------------------------- */

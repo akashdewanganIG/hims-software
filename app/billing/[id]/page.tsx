@@ -300,6 +300,7 @@ export default function InvoicePage() {
                     return (
                       <tr
                         key={item.id}
+                        data-fresh-id={item.id}
                         className={cn(
                           "border-b border-border/80 last:border-0",
                           item.quantity < 0 && "text-info-foreground"
@@ -391,6 +392,7 @@ export default function InvoicePage() {
                   {data.payments.map(p => (
                     <tr
                       key={p.id}
+                      data-fresh-id={p.id}
                       className="border-b border-border/80 last:border-0"
                     >
                       <td className="px-4 py-2 font-mono text-xs">{p.code}</td>

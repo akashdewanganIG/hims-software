@@ -7,7 +7,12 @@ import type { Database } from "@/lib/sim/schema";
 import { fileOf } from "@/lib/domain/files";
 import { isOnDuty } from "@/lib/domain/wfm";
 import { departmentName, matches, staffName } from "@/lib/api/lookup";
-import type { ID, RosterStatus, Staff } from "@/lib/sim/schema";
+import type {
+  AttendanceStatus,
+  ID,
+  RosterStatus,
+  Staff,
+} from "@/lib/sim/schema";
 import { addDaysIso, isoDate, minutesBetween } from "@/lib/sim/time";
 
 export interface StaffRow {
@@ -95,6 +100,12 @@ export function staffProfileView(
   const monthAgo = new Date(now.getTime() - 30 * 86_400_000).toISOString();
   const days = Array.from({ length: 7 }, (_, i) => addDaysIso(today, i));
   const shifts = new Map(db.shifts.map(x => [x.id, x]));
+  const attendance = db.attendance
+    .filter(a => a.staffId === s.id && a.date >= addDaysIso(today, -29))
+    .sort((a, b) => b.date.localeCompare(a.date));
+  const presentDays = attendance.filter(a =>
+    (["PRESENT", "LATE", "HALF_DAY"] as AttendanceStatus[]).includes(a.status)
+  ).length;
   const activity =
     s.role === "DOCTOR"
       ? [
@@ -152,10 +163,132 @@ export function staffProfileView(
       };
     }),
     activity,
+    todayAttendance: db.attendance.find(
+      a => a.staffId === s.id && a.date === today
+    ),
+    attendance30: {
+      marked: attendance.length,
+      present: presentDays,
+      absent: attendance.filter(a => a.status === "ABSENT").length,
+      late: attendance.filter(a => a.status === "LATE").length,
+      rate: attendance.length
+        ? Math.round((presentDays / attendance.length) * 100)
+        : null,
+    },
     tenureYears: Math.max(
       0,
       Math.floor(minutesBetween(s.joinedOn, now) / (60 * 24 * 365))
     ),
+  };
+}
+
+export type AttendanceDisplayStatus = AttendanceStatus | "NOT_MARKED";
+
+export interface AttendanceRow {
+  id: ID;
+  staffId: ID;
+  staffCode: string;
+  name: string;
+  role: Staff["role"];
+  designation: string;
+  department: string;
+  departmentId: ID;
+  staffStatus: Staff["status"];
+  status: AttendanceDisplayStatus;
+  checkInAt?: string;
+  checkOutAt?: string;
+  note?: string;
+  recordedBy?: string;
+  rosterStatus: RosterStatus | "UNROSTERED";
+  shift?: string;
+  shiftWindow?: string;
+}
+
+export function attendanceView(
+  db: Database,
+  now: Date,
+  filters: {
+    date: string;
+    q?: string;
+    departmentId?: string;
+    status?: string;
+    staffId?: string;
+  }
+) {
+  const date = filters.date || isoDate(now);
+  const shifts = new Map(db.shifts.map(s => [s.id, s]));
+  const roster = new Map(
+    db.roster.filter(r => r.date === date).map(r => [r.staffId, r])
+  );
+  const attendance = new Map(
+    db.attendance.filter(a => a.date === date).map(a => [a.staffId, a])
+  );
+  const staffById = new Map(db.staff.map(s => [s.id, s]));
+  const base = db.staff.filter(
+    s =>
+      s.status !== "INACTIVE" &&
+      (!filters.staffId || s.id === filters.staffId) &&
+      (!filters.departmentId || s.departmentId === filters.departmentId)
+  );
+  const allRows = base
+    .map<AttendanceRow>(s => {
+      const record = attendance.get(s.id);
+      const duty = roster.get(s.id);
+      const shift = duty?.shiftId ? shifts.get(duty.shiftId) : undefined;
+      const recordedBy = record
+        ? staffById.get(record.recordedById)
+        : undefined;
+      return {
+        id: record?.id ?? `unmarked-${s.id}-${date}`,
+        staffId: s.id,
+        staffCode: s.staffCode,
+        name: staffName(s),
+        role: s.role,
+        designation: s.designation,
+        department: departmentName(db, s.departmentId),
+        departmentId: s.departmentId,
+        staffStatus: s.status,
+        status: record?.status ?? "NOT_MARKED",
+        checkInAt: record?.checkInAt,
+        checkOutAt: record?.checkOutAt,
+        note: record?.note,
+        recordedBy: recordedBy ? staffName(recordedBy) : undefined,
+        rosterStatus: duty?.status ?? "UNROSTERED",
+        shift: shift?.name,
+        shiftWindow: shift ? `${shift.start}–${shift.end}` : undefined,
+      };
+    })
+    .sort(
+      (a, b) =>
+        a.department.localeCompare(b.department) || a.name.localeCompare(b.name)
+    );
+  const rows = allRows.filter(
+    row =>
+      (!filters.status || row.status === filters.status) &&
+      (!filters.q ||
+        matches(
+          filters.q,
+          row.name,
+          row.staffCode,
+          row.designation,
+          row.department
+        ))
+  );
+  const count = (status: AttendanceDisplayStatus) =>
+    allRows.filter(r => r.status === status).length;
+  return {
+    date,
+    rows,
+    summary: {
+      total: allRows.length,
+      present: count("PRESENT"),
+      late: count("LATE"),
+      halfDay: count("HALF_DAY"),
+      absent: count("ABSENT"),
+      leave: count("LEAVE"),
+      offDuty: count("OFF_DUTY"),
+      notMarked: count("NOT_MARKED"),
+    },
   };
 }
 

@@ -10,7 +10,12 @@ import {
   DialogTitle,
 } from "./dialog";
 import { Button } from "./button";
-import { AlertTriangle, ArrowRightLeft } from "@/components/icons";
+import { cn } from "@/lib/utils";
+import {
+  AlertTriangle,
+  ArrowRightLeft,
+  type IconComponent,
+} from "@/components/icons";
 
 interface ConfirmationDialogProps {
   open: boolean;
@@ -22,6 +27,8 @@ interface ConfirmationDialogProps {
   variant?: "default" | "destructive";
   isLoading?: boolean;
   disabled?: boolean;
+  /** Replaces the variant's default icon. */
+  icon?: IconComponent;
 }
 
 export function ConfirmationDialog({
@@ -34,10 +41,13 @@ export function ConfirmationDialog({
   variant = "default",
   isLoading = false,
   disabled = false,
+  icon,
 }: ConfirmationDialogProps) {
   const [isProcessing, setIsProcessing] = React.useState(false);
 
   const busy = isProcessing || isLoading;
+  const Icon =
+    icon ?? (variant === "destructive" ? AlertTriangle : ArrowRightLeft);
 
   const handleConfirm = async () => {
     if (busy || disabled) return;
@@ -59,11 +69,12 @@ export function ConfirmationDialog({
       <DialogContent className="sm:max-w-[26.5625rem]">
         <DialogHeader>
           <div className="flex items-center gap-3">
-            {variant === "destructive" ? (
-              <AlertTriangle className="h-6 w-6 text-destructive" />
-            ) : (
-              <ArrowRightLeft className="h-6 w-6 text-primary" />
-            )}
+            <Icon
+              className={cn(
+                "h-6 w-6 shrink-0",
+                variant === "destructive" ? "text-destructive" : "text-primary"
+              )}
+            />
             <DialogTitle>{title}</DialogTitle>
           </div>
           <DialogDescription className="text-left">

@@ -128,10 +128,13 @@ async function loadState(): Promise<EngineState> {
     return replaceDataset(generateDatabase(new Date()).db, 0, null);
   }
 
-  // Version 7 only adds the alerts table. The SQL migration creates it, so
-  // existing v6 hospital data can be adopted without rebuilding the entire
-  // demo dataset (and without discarding user changes).
-  if (meta.schemaVersion === 6 && SCHEMA_VERSION === 7) {
+  // Versions 7 and 8 add standalone alerts and attendance tables. Their SQL
+  // migrations create the tables, so older hospital data can be adopted
+  // without rebuilding the dataset (and without discarding user changes).
+  if (
+    (meta.schemaVersion === 6 || meta.schemaVersion === 7) &&
+    SCHEMA_VERSION === 8
+  ) {
     const db = await readTables(database(), meta);
     db.meta.schemaVersion = SCHEMA_VERSION;
     const upgraded = await database()

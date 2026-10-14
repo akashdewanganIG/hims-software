@@ -1,8 +1,20 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
-import { AlertCircle, Bell, CheckCheck, Plus } from "@/components/icons";
+import {
+  AlertCircle,
+  Archive,
+  Bell,
+  CheckCheck,
+  CheckCircle2,
+  Clock,
+  Info,
+  Plus,
+  RotateCcw,
+} from "@/components/icons";
 import { DataTable, type Column } from "@/components/shared/data-table";
 import {
   ErrorBanner,
@@ -16,14 +28,22 @@ import {
 import { Button } from "@/components/ui/button";
 import { CategorySwitcher } from "@/components/ui/category-switcher";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useConfirm } from "@/components/ui/confirm-provider";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { Input } from "@/components/ui/input";
 import { SearchInput } from "@/components/ui/search-input";
+import {
+  SEVERITY_ICON,
+  SEVERITY_ROW,
+  SEVERITY_TEXT,
+  type Severity,
+} from "@/components/ui/severity";
 import {
   Sheet,
   SheetBody,
   SheetContent,
   SheetDescription,
+  SheetFooter,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
@@ -37,6 +57,7 @@ import {
 } from "@/features/alerts/api";
 import { useAction } from "@/lib/api/client";
 import { formatDateTime } from "@/lib/format";
+import { useSession } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
 const PRIORITY_TONE: Record<string, TagTone> = {
@@ -45,6 +66,24 @@ const PRIORITY_TONE: Record<string, TagTone> = {
   HIGH: "pending",
   CRITICAL: "danger",
 };
+
+/** Rows wear the Operations severity colours; low priority stays plain. */
+const PRIORITY_SEVERITY: Record<string, Severity | undefined> = {
+  CRITICAL: "critical",
+  HIGH: "warning",
+  MEDIUM: "info",
+};
+
+const STATE_TONE: Record<string, TagTone> = {
+  OPEN: "progress",
+  RESOLVED: "active",
+  ARCHIVED: "neutral",
+};
+
+function dateTimeLocalValue(date: Date) {
+  const offset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+}
 
 const EMPTY_COMPOSER = {
   audience: "ALL" as "ALL" | "DEPARTMENT" | "ROLE" | "ROLE_STAFF",
@@ -55,14 +94,26 @@ const EMPTY_COMPOSER = {
   subject: "",
   message: "",
   priority: "MEDIUM" as "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
+  acknowledgementRequired: false,
+  dueAt: "",
+  escalationRoleId: "",
+  escalationRecipientId: "",
 };
 
 export default function AlertsPage() {
-  const [box, setBox] = React.useState<"inbox" | "sent">("inbox");
+  const searchParams = useSearchParams();
+  const { staff: signedInStaff } = useSession();
+  const confirm = useConfirm();
+  const [box, setBox] = React.useState<"inbox" | "sent">(
+    searchParams.get("box") === "sent" ? "sent" : "inbox"
+  );
   const [q, setQ] = React.useState("");
   const [category, setCategory] = React.useState("");
   const [priority, setPriority] = React.useState("");
   const [unreadOnly, setUnreadOnly] = React.useState(false);
+  const [status, setStatus] = React.useState<
+    "OPEN" | "RESOLVED" | "ARCHIVED" | ""
+  >("OPEN");
   const [selected, setSelected] = React.useState<AlertRow | null>(null);
   const [composeOpen, setComposeOpen] = React.useState(false);
   const [form, setForm] = React.useState(EMPTY_COMPOSER);
@@ -76,13 +127,69 @@ export default function AlertsPage() {
     category: category || undefined,
     priority: priority || undefined,
     unreadOnly: box === "inbox" ? unreadOnly : undefined,
+    status: status || undefined,
   });
   const { data: summary } = useAlertSummary();
   const { data: composer } = useAlertComposer();
+  const requestedAlertId = searchParams.get("alert");
+  const openedFromUrl = React.useRef<string | null>(null);
 
   const markRead = useAction("alerts.markRead", (alertId: string) => ({
     alertId,
   }));
+  const acknowledge = useAction(
+    "alerts.acknowledge",
+    (alertId: string) => ({ alertId }),
+    {
+      success: "Alert acknowledged",
+      onSuccess: result => {
+        const acknowledgement = result.acknowledgements.at(-1);
+        setSelected(current =>
+          current && current.id === result.id
+            ? {
+                ...current,
+                isRead: true,
+                isAcknowledged: true,
+                acknowledgedAt: acknowledgement?.acknowledgedAt,
+                readCount: result.readByIds.length,
+                acknowledgedCount: result.acknowledgements.length,
+              }
+            : current
+        );
+      },
+    }
+  );
+  const changeState = useAction(
+    "alerts.setState",
+    (vars: { alertId: string; status: "OPEN" | "RESOLVED" | "ARCHIVED" }) =>
+      vars,
+    {
+      success: (_result, vars) =>
+        vars.status === "OPEN"
+          ? "Alert reopened"
+          : vars.status === "RESOLVED"
+            ? "Alert resolved"
+            : "Alert archived",
+      onSuccess: (_result, vars) => {
+        setSelected(current =>
+          current && current.id === vars.alertId
+            ? { ...current, status: vars.status }
+            : current
+        );
+      },
+    }
+  );
+  const dueTime = form.dueAt ? new Date(form.dueAt) : undefined;
+  const escalationStaff =
+    composer?.staff.filter(
+      member =>
+        member.roleId === form.escalationRoleId &&
+        member.id !== signedInStaff?.id &&
+        member.id !== form.audienceId
+    ) ?? [];
+  const escalationRecipientIsAvailable = escalationStaff.some(
+    member => member.id === form.escalationRecipientId
+  );
   const send = useAction(
     "alerts.send",
     () => ({
@@ -93,6 +200,9 @@ export default function AlertsPage() {
       subject: form.subject,
       message: form.message,
       priority: form.priority,
+      acknowledgementRequired: form.acknowledgementRequired,
+      dueAt: dueTime?.toISOString(),
+      escalationRecipientId: form.escalationRecipientId || undefined,
     }),
     {
       success: result =>
@@ -100,6 +210,13 @@ export default function AlertsPage() {
       onSuccess: () => {
         setComposeOpen(false);
         setForm(EMPTY_COMPOSER);
+        // Show it where it now lives, so it can be highlighted.
+        setBox("sent");
+        setStatus("OPEN");
+        setUnreadOnly(false);
+        setQ("");
+        setCategory("");
+        setPriority("");
       },
     }
   );
@@ -108,6 +225,20 @@ export default function AlertsPage() {
     setSelected(alert);
     if (box === "inbox" && !alert.isRead) markRead.mutate(alert.id);
   };
+
+  React.useEffect(() => {
+    if (
+      !requestedAlertId ||
+      openedFromUrl.current === requestedAlertId ||
+      !rows.length
+    )
+      return;
+    const requested = rows.find(row => row.id === requestedAlertId);
+    if (!requested) return;
+    openedFromUrl.current = requestedAlertId;
+    setSelected(requested);
+    if (box === "inbox" && !requested.isRead) markRead.mutate(requested.id);
+  }, [requestedAlertId, rows, box, markRead]);
 
   const columns: Column<AlertRow>[] = [
     {
@@ -120,7 +251,7 @@ export default function AlertsPage() {
             "block size-2 rounded-full",
             row.isRead || box === "sent"
               ? "bg-border-strong"
-              : "bg-info shadow-[0_0_0_4px_var(--info-surface)]"
+              : "bg-info shadow-[0_0_0_4px_color-mix(in_srgb,var(--info)_18%,transparent)]"
           )}
           aria-label={row.isRead ? "Read" : "Unread"}
         />
@@ -130,21 +261,50 @@ export default function AlertsPage() {
       id: "subject",
       header: "About",
       sortValue: row => row.subject,
-      cell: row => (
-        <div className="min-w-0 max-w-xl">
-          <p
-            className={cn(
-              "truncate",
-              !row.isRead && box === "inbox" && "font-semibold"
-            )}
-          >
-            {row.subject}
-          </p>
-          <p className="truncate text-xs text-muted-foreground">
-            {row.message}
-          </p>
-        </div>
-      ),
+      cell: row => {
+        const severity = PRIORITY_SEVERITY[row.priority];
+        const Icon = severity ? SEVERITY_ICON[severity] : Info;
+        return (
+          <div className="flex min-w-0 max-w-xl items-start gap-2.5">
+            <Icon
+              aria-hidden="true"
+              className={cn(
+                "mt-0.5 size-4 shrink-0",
+                severity ? SEVERITY_TEXT[severity] : "text-muted-foreground"
+              )}
+            />
+            <div className="min-w-0 flex-1">
+              <p
+                className={cn(
+                  "truncate",
+                  severity && SEVERITY_TEXT[severity],
+                  !row.isRead && box === "inbox" && "font-semibold"
+                )}
+              >
+                {row.subject}
+              </p>
+              <div className="mt-1 flex flex-wrap gap-1">
+                {row.isOverdue ? <Tag tone="danger">Overdue</Tag> : null}
+                {row.isEscalatedToMe ? (
+                  <Tag tone="pending">Escalated</Tag>
+                ) : null}
+                {row.linkedAdmission ? (
+                  <Tag tone="neutral">{row.linkedAdmission.code}</Tag>
+                ) : null}
+              </div>
+              <p className="truncate text-xs text-muted-foreground">
+                {row.message}
+              </p>
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      id: "mailboxState",
+      header: "Status",
+      sortValue: row => row.status,
+      cell: row => <Tag tone={STATE_TONE[row.status]}>{row.status}</Tag>,
     },
     {
       id: "category",
@@ -164,11 +324,41 @@ export default function AlertsPage() {
     },
     {
       id: "people",
-      header: box === "inbox" ? "From" : "Recipients",
+      header: box === "inbox" ? "From" : "Target",
       cell: row =>
-        box === "inbox"
-          ? row.sender
-          : `${row.recipientCount} staff member${row.recipientCount === 1 ? "" : "s"}`,
+        box === "inbox" ? (
+          row.sender
+        ) : (
+          <div className="min-w-0 max-w-56">
+            <p className="truncate">{row.audienceLabel}</p>
+            <p className="text-xs text-muted-foreground">
+              {row.recipientCount} recipient
+              {row.recipientCount === 1 ? "" : "s"}
+            </p>
+          </div>
+        ),
+    },
+    {
+      id: "acknowledgement",
+      header: "Acknowledgement",
+      cell: row =>
+        !row.acknowledgementRequired ? (
+          <span className="text-muted-foreground">Not required</span>
+        ) : box === "sent" ? (
+          <Tag
+            tone={
+              row.acknowledgedCount === row.recipientCount
+                ? "active"
+                : "pending"
+            }
+          >
+            {row.acknowledgedCount}/{row.recipientCount}
+          </Tag>
+        ) : row.isAcknowledged ? (
+          <Tag tone="active">Acknowledged</Tag>
+        ) : (
+          <Tag tone="pending">Required</Tag>
+        ),
     },
     {
       id: "createdAt",
@@ -192,6 +382,14 @@ export default function AlertsPage() {
     composer?.staff.filter(staff => staff.roleId === form.roleId) ?? [];
   const finalCategory =
     form.category === "__custom" ? form.customCategory.trim() : form.category;
+  const dueIsValid =
+    !dueTime ||
+    (!Number.isNaN(dueTime.getTime()) && dueTime.getTime() > Date.now());
+  const escalationIsValid =
+    !form.escalationRecipientId ||
+    (escalationRecipientIsAvailable &&
+      Boolean(dueTime) &&
+      (form.priority === "HIGH" || form.priority === "CRITICAL"));
   const formValid =
     finalCategory.length >= 2 &&
     form.subject.trim().length >= 3 &&
@@ -199,7 +397,9 @@ export default function AlertsPage() {
     (form.audience === "ALL" ||
       (form.audience === "ROLE_STAFF"
         ? Boolean(form.roleId && form.audienceId)
-        : Boolean(form.audienceId)));
+        : Boolean(form.audienceId))) &&
+    dueIsValid &&
+    escalationIsValid;
 
   return (
     <PageShell>
@@ -231,6 +431,13 @@ export default function AlertsPage() {
           hint="Alerts received"
         />
         <StatCard
+          label="To acknowledge"
+          value={summary?.awaitingAcknowledgement ?? 0}
+          icon={CheckCircle2}
+          tone={summary?.awaitingAcknowledgement ? "warning" : "neutral"}
+          hint="Explicit response required"
+        />
+        <StatCard
           label="Critical"
           value={summary?.critical ?? 0}
           icon={AlertCircle}
@@ -242,6 +449,13 @@ export default function AlertsPage() {
           value={summary?.sent ?? 0}
           icon={Plus}
           hint="Alerts you created"
+        />
+        <StatCard
+          label="Overdue sent"
+          value={summary?.overdueSent ?? 0}
+          icon={Clock}
+          tone={summary?.overdueSent ? "warning" : "neutral"}
+          hint="Waiting beyond deadline"
         />
       </section>
 
@@ -259,9 +473,10 @@ export default function AlertsPage() {
               : "You have not sent any alerts."
           }
           onRowClick={openAlert}
-          rowClassName={row =>
-            box === "inbox" && !row.isRead ? "bg-info-surface/35" : undefined
-          }
+          rowClassName={row => {
+            const severity = PRIORITY_SEVERITY[row.priority];
+            return severity ? SEVERITY_ROW[severity] : undefined;
+          }}
           toolbar={
             <>
               <CategorySwitcher
@@ -270,6 +485,7 @@ export default function AlertsPage() {
                 onValueChange={next => {
                   setBox(next);
                   setUnreadOnly(false);
+                  setStatus("OPEN");
                 }}
                 items={[
                   { value: "inbox", label: "Inbox", count: summary?.unread },
@@ -294,6 +510,21 @@ export default function AlertsPage() {
                     {value}
                   </option>
                 ))}
+              </SelectField>
+              <SelectField
+                className="w-full sm:w-32"
+                aria-label="Alert status"
+                value={status}
+                onChange={event =>
+                  setStatus(
+                    event.target.value as "OPEN" | "RESOLVED" | "ARCHIVED" | ""
+                  )
+                }
+              >
+                <option value="">All statuses</option>
+                <option value="OPEN">Open</option>
+                <option value="RESOLVED">Resolved</option>
+                <option value="ARCHIVED">Archived</option>
               </SelectField>
               <SelectField
                 className="w-full sm:w-32"
@@ -453,6 +684,119 @@ export default function AlertsPage() {
             <option value="CRITICAL">Critical</option>
           </SelectField>
         </Field>
+        <label className="flex items-start gap-3 rounded-xl border border-border bg-surface-subtle p-3 sm:col-span-2">
+          <Checkbox
+            className="mt-0.5"
+            aria-label="Require acknowledgement"
+            checked={form.acknowledgementRequired}
+            onCheckedChange={acknowledgementRequired =>
+              setForm(current => ({
+                ...current,
+                acknowledgementRequired,
+              }))
+            }
+          />
+          <span>
+            <span className="block text-sm font-medium text-foreground">
+              Require acknowledgement
+            </span>
+            <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
+              Each recipient must explicitly acknowledge this alert; opening it
+              only marks it as read.
+            </span>
+          </span>
+        </label>
+        <Field
+          label="Response deadline"
+          className="sm:col-span-2"
+          hint="Overdue alerts are highlighted in your Sent mailbox. Add an escalation recipient to notify another person automatically."
+          error={!dueIsValid ? "Choose a future date and time." : undefined}
+        >
+          <Input
+            type="datetime-local"
+            min={dateTimeLocalValue(new Date(Date.now() + 60_000))}
+            value={form.dueAt}
+            onChange={event =>
+              setForm(current => ({
+                ...current,
+                dueAt: event.target.value,
+                escalationRoleId: event.target.value
+                  ? current.escalationRoleId
+                  : "",
+                escalationRecipientId: event.target.value
+                  ? current.escalationRecipientId
+                  : "",
+              }))
+            }
+          />
+        </Field>
+        {form.dueAt ? (
+          <div className="grid gap-3 rounded-xl border border-border bg-surface-subtle p-3 sm:col-span-2 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <p className="text-sm font-medium text-foreground">
+                Automatic escalation
+              </p>
+              <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+                For high or critical alerts, notify another staff member if the
+                original recipients have not read or acknowledged the alert by
+                the deadline.
+              </p>
+            </div>
+            <Field label="Escalation role">
+              <SelectField
+                value={form.escalationRoleId}
+                onChange={event =>
+                  setForm(current => ({
+                    ...current,
+                    escalationRoleId: event.target.value,
+                    escalationRecipientId: "",
+                  }))
+                }
+              >
+                <option value="">No automatic escalation</option>
+                {composer?.roles.map(role => (
+                  <option key={role.id} value={role.id}>
+                    {role.label}
+                  </option>
+                ))}
+              </SelectField>
+            </Field>
+            <Field label="Escalate to">
+              <SelectField
+                value={
+                  escalationRecipientIsAvailable
+                    ? form.escalationRecipientId
+                    : ""
+                }
+                disabled={!form.escalationRoleId}
+                onChange={event =>
+                  setForm(current => ({
+                    ...current,
+                    escalationRecipientId: event.target.value,
+                    priority:
+                      event.target.value &&
+                      current.priority !== "HIGH" &&
+                      current.priority !== "CRITICAL"
+                        ? "HIGH"
+                        : current.priority,
+                  }))
+                }
+              >
+                <option value="">
+                  {form.escalationRoleId
+                    ? "Choose a person"
+                    : "Choose a role first"}
+                </option>
+                {escalationStaff.map(member => (
+                  <option key={member.id} value={member.id}>
+                    {member.label}
+                    {member.onDuty ? " · on duty" : ""}
+                  </option>
+                ))}
+              </SelectField>
+            </Field>
+          </div>
+        ) : null}
         {form.category === "__custom" ? (
           <Field label="Custom category" required className="sm:col-span-2">
             <Input
@@ -514,7 +858,51 @@ export default function AlertsPage() {
                   <Tag tone={PRIORITY_TONE[selected.priority]} dot>
                     {selected.priority}
                   </Tag>
+                  <Tag tone={STATE_TONE[selected.status]}>
+                    {selected.status}
+                  </Tag>
+                  {selected.isOverdue ? <Tag tone="danger">Overdue</Tag> : null}
                 </div>
+                {selected.dueAt ? (
+                  <div
+                    className={cn(
+                      "rounded-xl border p-3 text-sm",
+                      selected.isOverdue
+                        ? "border-error-border bg-error-surface text-error-foreground"
+                        : "border-border bg-surface-subtle text-foreground"
+                    )}
+                  >
+                    <p className="flex items-center gap-2 font-medium">
+                      <Clock className="size-4" />
+                      Response due {formatDateTime(selected.dueAt)}
+                    </p>
+                    <p className="mt-1 text-xs leading-5">
+                      {selected.isEscalated
+                        ? `Overdue and escalated to ${selected.escalationLabel}.`
+                        : selected.escalationLabel
+                          ? `If overdue, this alert is automatically sent to ${selected.escalationLabel}.`
+                          : "If overdue, it is highlighted in the sender's Sent mailbox."}
+                    </p>
+                  </div>
+                ) : null}
+                {selected.linkedAdmission ? (
+                  <div className="flex items-center justify-between gap-3 rounded-xl border border-info-border bg-info-surface p-3">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">
+                        {selected.linkedAdmission.patientName}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {selected.linkedAdmission.code} · linked inpatient
+                        record
+                      </p>
+                    </div>
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={`/ipd/${selected.linkedAdmission.id}`}>
+                        View admission
+                      </Link>
+                    </Button>
+                  </div>
+                ) : null}
                 <SheetDescription>
                   {selected.category} · sent{" "}
                   {formatDateTime(selected.createdAt)}
@@ -527,13 +915,53 @@ export default function AlertsPage() {
                     <p className="mt-0.5 font-medium">{selected.sender}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Recipients</p>
+                    <p className="text-xs text-muted-foreground">
+                      Intended target
+                    </p>
+                    <p className="mt-0.5 font-medium">
+                      {selected.audienceLabel}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Delivery</p>
                     <p className="mt-0.5 font-medium">
                       {selected.recipientCount} staff · {selected.readCount}{" "}
                       read
                     </p>
                   </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      Acknowledgement
+                    </p>
+                    <p className="mt-0.5 font-medium">
+                      {selected.acknowledgementRequired
+                        ? `${selected.acknowledgedCount} of ${selected.recipientCount}`
+                        : "Not required"}
+                    </p>
+                  </div>
                 </div>
+                {box === "inbox" && selected.acknowledgementRequired ? (
+                  <div
+                    className={cn(
+                      "rounded-xl border p-3 text-sm",
+                      selected.isAcknowledged
+                        ? "border-success-border bg-success-surface text-success-foreground"
+                        : "border-warning-border bg-warning-surface text-warning-foreground"
+                    )}
+                  >
+                    <p className="flex items-center gap-2 font-medium">
+                      <CheckCircle2 className="size-4" />
+                      {selected.isAcknowledged
+                        ? "Acknowledged"
+                        : "Your acknowledgement is required"}
+                    </p>
+                    <p className="mt-1 text-xs leading-5">
+                      {selected.isAcknowledged && selected.acknowledgedAt
+                        ? `Acknowledged ${formatDateTime(selected.acknowledgedAt)}.`
+                        : "Opening this alert marks it as read. Use the button below to explicitly confirm that you have received and understood it."}
+                    </p>
+                  </div>
+                ) : null}
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Alert details
@@ -553,6 +981,87 @@ export default function AlertsPage() {
                   </div>
                 ) : null}
               </SheetBody>
+              <SheetFooter>
+                {box === "inbox" &&
+                selected.acknowledgementRequired &&
+                !selected.isAcknowledged ? (
+                  <Button
+                    onClick={() =>
+                      confirm({
+                        title: "Acknowledge this alert?",
+                        description: `You confirm to ${selected.sender} that you have received and understood "${selected.subject}". An acknowledgement is recorded and cannot be withdrawn.`,
+                        confirmText: "Acknowledge",
+                        icon: CheckCircle2,
+                        onConfirm: () => acknowledge.mutateAsync(selected.id),
+                      })
+                    }
+                    disabled={acknowledge.isPending}
+                  >
+                    <CheckCircle2 className="size-4" />
+                    {acknowledge.isPending
+                      ? "Acknowledging…"
+                      : "Acknowledge alert"}
+                  </Button>
+                ) : null}
+                {selected.status !== "OPEN" ? (
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      changeState.mutate({
+                        alertId: selected.id,
+                        status: "OPEN",
+                      })
+                    }
+                    disabled={changeState.isPending}
+                  >
+                    <RotateCcw className="size-4" />
+                    Reopen
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      confirm({
+                        title: "Resolve this alert?",
+                        description: `"${selected.subject}" moves out of your open alerts. You can reopen it later from the Resolved filter.`,
+                        confirmText: "Resolve",
+                        icon: CheckCircle2,
+                        onConfirm: () =>
+                          changeState.mutateAsync({
+                            alertId: selected.id,
+                            status: "RESOLVED",
+                          }),
+                      })
+                    }
+                    disabled={changeState.isPending}
+                  >
+                    <CheckCircle2 className="size-4" />
+                    Resolve
+                  </Button>
+                )}
+                {selected.status !== "ARCHIVED" ? (
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      confirm({
+                        title: "Archive this alert?",
+                        description: `"${selected.subject}" leaves your open alerts and is kept only in the archive. You can reopen it later from the Archived filter.`,
+                        confirmText: "Archive",
+                        icon: Archive,
+                        onConfirm: () =>
+                          changeState.mutateAsync({
+                            alertId: selected.id,
+                            status: "ARCHIVED",
+                          }),
+                      })
+                    }
+                    disabled={changeState.isPending}
+                  >
+                    <Archive className="size-4" />
+                    Archive
+                  </Button>
+                ) : null}
+              </SheetFooter>
             </>
           ) : null}
         </SheetContent>

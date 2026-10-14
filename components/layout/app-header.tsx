@@ -9,6 +9,7 @@ import { useStoredFile } from "@/lib/api/client";
 import { staffName } from "@/lib/api/lookup";
 import { HOSPITAL } from "@/lib/sim/reference";
 import { useSession } from "@/lib/session";
+import { AlertNotificationBell } from "@/features/alerts/notification-bell";
 
 import { SystemMenu } from "./simulation-menu";
 
@@ -44,6 +45,7 @@ export function AppHeader({ onMenuClick }: { onMenuClick: () => void }) {
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
+          <AlertNotificationBell />
           <SystemMenu />
           <ProfileDropdown
             user={{

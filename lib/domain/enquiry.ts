@@ -161,8 +161,9 @@ export function addFollowUp(
       "The next follow-up date cannot be in the past."
     );
   }
+  const followUpId = newId(tx, "efu");
   tx.db.enquiryFollowUps.push({
-    id: newId(tx, "efu"),
+    id: followUpId,
     enquiryId,
     at: nowIso(tx),
     byId: tx.actorId,
@@ -182,7 +183,7 @@ export function addFollowUp(
     action: "follow_up",
     summary: `Follow-up on ${enquiry.code} (${input.channel.toLowerCase().replace("_", " ")})`,
   });
-  return enquiry;
+  return { ...enquiry, followUpId };
 }
 
 /**

@@ -42,6 +42,7 @@ import { Rng } from "./rng";
 import { consentFormScan } from "./scans";
 import {
   emptyDatabase,
+  type AttendanceStatus,
   type Admission,
   type ComplaintCategory,
   type Database,
@@ -452,6 +453,59 @@ export function generateDatabase(
     if (to <= from) to = addDays(to, 1);
     return { from, to };
   };
+
+  /* --------------------------- attendance --------------------------- */
+
+  for (let d = -29; d <= 0; d += 1) {
+    const day = addDays(today, d);
+    const date = isoDate(day);
+    db.staff.forEach((staff, index) => {
+      const duty = rosterIndex.get(`${staff.id}|${date}`);
+      if (!duty) return;
+      let status: AttendanceStatus;
+      let checkInAt: string | undefined;
+      let checkOutAt: string | undefined;
+
+      if (duty.status === "LEAVE") status = "LEAVE";
+      else if (duty.status === "OFF") status = "OFF_DUTY";
+      else if (duty.shift) {
+        const window = shiftWindow(duty.shift, day);
+        if (d === 0 && window.from > now) return;
+        const marker = Math.abs(index * 17 + (d + 1000) * 7) % 100;
+        status =
+          marker < 4
+            ? "ABSENT"
+            : marker < 15
+              ? "LATE"
+              : marker < 20
+                ? "HALF_DAY"
+                : "PRESENT";
+        if (status !== "ABSENT") {
+          const arrival = addMinutes(window.from, status === "LATE" ? 22 : 0);
+          checkInAt = arrival.toISOString();
+          const departure =
+            status === "HALF_DAY" ? addMinutes(arrival, 4 * 60) : window.to;
+          if (departure <= now) checkOutAt = departure.toISOString();
+        }
+      } else return;
+
+      const recordedAt = new Date(
+        Math.min(now.getTime(), startOfDay(day).getTime() + 12 * 60 * 60_000)
+      ).toISOString();
+      db.attendance.push({
+        id: `att_${staff.id}_${date}`,
+        staffId: staff.id,
+        date,
+        status,
+        checkInAt,
+        checkOutAt,
+        note: status === "ABSENT" ? "Attendance exception recorded" : undefined,
+        recordedById: opsManagers[0]!.id,
+        createdAt: recordedAt,
+        updatedAt: recordedAt,
+      });
+    });
+  }
 
   const onDuty = (staff: Staff, at: Date) => {
     for (const day of [at, addDays(at, -1)]) {
@@ -2359,6 +2413,7 @@ export function generateDatabase(
     message:
       "Please confirm PPE stock, oxygen supply and housekeeping clearance for isolation beds before the evening handover.",
     priority: "HIGH",
+    acknowledgementRequired: true,
   });
 
   alerts.sendAlert(tx(addMinutes(now, -35), opsManagers[0]!.id), {
@@ -2379,6 +2434,7 @@ export function generateDatabase(
     message:
       "Please confirm the isolation-room handover with the duty doctor by 3:30 PM and reply after the PPE, oxygen and cleaning checks are complete.",
     priority: "HIGH",
+    acknowledgementRequired: true,
   });
 
   // Keep the audit feed to the recent window; older history lives in the

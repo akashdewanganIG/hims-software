@@ -13,6 +13,7 @@ import type {
   OperationName,
   OperationResult,
 } from "../ops/registry";
+import { markFresh } from "../fresh";
 import { useSession } from "../session";
 import { toast } from "../toast";
 import type { ViewName, ViewParams, ViewResult } from "../views/registry";
@@ -91,6 +92,46 @@ export function useFileLoader() {
   );
 }
 
+/**
+ * Writes that add a record, and the ids it shows under on screen: each is
+ * highlighted (scrolled to and flashed green) as it appears. See lib/fresh.
+ */
+const ADDS: {
+  [N in OperationName]?: (
+    result: OperationResult<N>
+  ) => Array<string | undefined> | string | undefined;
+} = {
+  "alerts.send": r => r.id,
+  "patient.register": r => r.id,
+  "enquiry.create": r => r.id,
+  "enquiry.followUp": r => r.followUpId,
+  "enquiry.convert": r => r.id,
+  "appointment.book": r => r.id,
+  "appointment.walkIn": r => [r.appointment.id, r.encounter.id],
+  "rx.create": r => r.id,
+  "lab.order": r => r.id,
+  // The new batch, and its medicine's row in the inventory list.
+  "pharmacy.receiveStock": r => [r.id, r.medicineId],
+  "pharmacy.counterSale": r => [r.invoiceId, ...r.transactions.map(t => t.id)],
+  "pharmacy.createMedicine": r => r.id,
+  "ipd.admit": r => r.id,
+  "ipd.addNote": r => r.id,
+  "ipd.addCareOrder": r => r.id,
+  "beds.createWard": r => r.id,
+  "beds.createRoom": r => r.id,
+  "billing.collect": r => r.id,
+  "billing.refund": r => r.id,
+  "billing.addCharge": r => r.id,
+  "document.add": r => r.id,
+  "complaint.log": r => r.id,
+  "complaint.addNote": r => r.noteId,
+  "complaint.attachPhoto": r => r.fileId,
+  "feedback.submit": r => r.id,
+  "wfm.createStaff": r => r.id,
+  "admin.createUser": r => r.id,
+  "admin.createRole": r => r.id,
+};
+
 export function useAction<N extends OperationName, V = void>(
   name: N,
   build: (vars: V) => OperationInput<N>,
@@ -124,6 +165,7 @@ export function useAction<N extends OperationName, V = void>(
           ? options.success(result, vars)
           : options.success;
       if (message) toast.success(message);
+      if (!options.silent) markFresh(ADDS[name]?.(result));
       options.onSuccess?.(result, vars);
     },
     onError: error => {

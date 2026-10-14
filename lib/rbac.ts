@@ -377,7 +377,7 @@ export const DEFAULT_ROLES: Record<SystemRole, RoleDefinition> = {
     description:
       "Sample collection, processing, result entry and report verification.",
     modules: ["dashboard", "ehr", "lab"],
-    actions: ["lab.collect", "lab.result", "lab.verify"],
+    actions: ["lab.order", "lab.collect", "lab.result", "lab.verify"],
     homePath: "/lab",
   }),
   BILLING_EXECUTIVE: defineRole({

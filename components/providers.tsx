@@ -4,9 +4,11 @@ import * as React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { AppShell } from "@/components/layout/app-shell";
+import { ConfirmProvider } from "@/components/ui/confirm-provider";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useServerSync } from "@/lib/api/client";
+import { FreshHighlighter } from "@/lib/fresh";
 import { SessionProvider } from "@/lib/session";
 
 /** Keeps screens current with changes other people make (server mode). */
@@ -32,7 +34,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <TooltipProvider delayDuration={200}>
           <SessionProvider>
             <ServerSync />
-            <AppShell>{children}</AppShell>
+            <FreshHighlighter />
+            <ConfirmProvider>
+              <AppShell>{children}</AppShell>
+            </ConfirmProvider>
           </SessionProvider>
         </TooltipProvider>
       </QueryClientProvider>

@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { SelectField } from "@/components/ui/select-field";
 import { useAction } from "@/lib/api/client";
 import { formatINR } from "@/lib/format";
-import type { ID, LabPriority } from "@/lib/sim/schema";
+import type { ID, LabOrder, LabPriority } from "@/lib/sim/schema";
 import { cn } from "@/lib/utils";
 
 import { useLabTestOptions } from "./api";
@@ -18,9 +18,12 @@ import { useLabTestOptions } from "./api";
 export function LabOrderForm({
   encounterId,
   onDone,
+  billedTo = "this visit",
 }: {
   encounterId: ID;
-  onDone?: () => void;
+  onDone?: (order: LabOrder) => void;
+  /** Whose bill the charges land on, as shown under the tests. */
+  billedTo?: string;
 }) {
   const { data: tests = [] } = useLabTestOptions();
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
@@ -48,11 +51,11 @@ export function LabOrderForm({
     }),
     {
       success: o => `Lab order ${o.code} sent to the laboratory`,
-      onSuccess: () => {
+      onSuccess: o => {
         setSelected(new Set());
         setNotes("");
         setPriority("ROUTINE");
-        onDone?.();
+        onDone?.(o);
       },
     }
   );
@@ -122,7 +125,7 @@ export function LabOrderForm({
       <div className="flex flex-col gap-2 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-muted-foreground">
           {selected.size
-            ? `${selected.size} test${selected.size === 1 ? "" : "s"} · ${formatINR(total)} billed to this visit`
+            ? `${selected.size} test${selected.size === 1 ? "" : "s"} · ${formatINR(total)} billed to ${billedTo}`
             : "Select one or more tests."}
         </p>
         <Button

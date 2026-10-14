@@ -12,15 +12,21 @@ import {
 } from "@/lib/domain/lab";
 import {
   admissionBed,
+  departmentName,
   getStaff,
   matches,
   patientRef,
   staffName,
   type PatientRef,
 } from "@/lib/api/lookup";
-import type { ID, LabOrder, LabParameter } from "@/lib/sim/schema";
+import type { Admission, ID, LabOrder, LabParameter } from "@/lib/sim/schema";
 import { isSameDay } from "@/lib/sim/time";
-import { labOrderView, type LabOrderView } from "@/features/opd/views";
+import {
+  labOrderView,
+  orderContext,
+  type LabOrderView,
+  type OrderContext,
+} from "@/features/opd/views";
 
 export type LabStage =
   "collection" | "processing" | "reporting" | "completed" | "all";
@@ -44,6 +50,7 @@ export interface LabRow {
   orderedAt: string;
   orderedBy: string;
   setting: string;
+  orderedFor?: OrderContext;
   elapsedHours: number;
   expectedHours: number;
   overdue: boolean;
@@ -120,6 +127,7 @@ export function labWorklistView(
         orderedAt: o.orderedAt,
         orderedBy: staffName(getStaff(db, o.orderedById)),
         setting: bed ? `IPD · ${bed.ward} ${bed.code}` : "OPD",
+        orderedFor: orderContext(db, o.encounterId, o.admissionId),
         elapsedHours: turnaroundHours(o, now),
         expectedHours: expectedTatHours(db, o),
         overdue: isLabOverdue(db, o, now),
@@ -200,4 +208,59 @@ export function labOrderDetailView(
       })),
     })),
   };
+}
+
+/**
+ * Where a new lab order for a patient can be filed: a live admission (its
+ * IPD encounter) or an open OPD visit — the encounters that accept orders.
+ * The order, its charges and its report then sit with that stay or visit.
+ */
+export interface LabOrderTarget {
+  encounterId: ID;
+  type: "IPD" | "OPD";
+  code: string;
+  /** Ward and bed for an admission; department for a visit. */
+  where: string;
+  doctor: string;
+  since: string;
+}
+export function labOrderTargetsView(
+  db: Database,
+  _now: Date,
+  { patientId }: { patientId: ID }
+): LabOrderTarget[] {
+  const live: Admission["status"][] = [
+    "ADMITTED",
+    "ACTIVE",
+    "TRANSFER_PENDING",
+  ];
+  const admissions = db.admissions
+    .filter(a => a.patientId === patientId && live.includes(a.status))
+    .map<LabOrderTarget>(a => {
+      const bed = admissionBed(db, a);
+      return {
+        encounterId: a.encounterId,
+        type: "IPD",
+        code: a.code,
+        where: bed
+          ? `${bed.ward} · bed ${bed.code}`
+          : departmentName(db, a.departmentId),
+        doctor: staffName(getStaff(db, a.doctorId)),
+        since: a.admittedAt,
+      };
+    });
+  const visits = db.encounters
+    .filter(
+      e => e.patientId === patientId && e.type === "OPD" && e.status === "OPEN"
+    )
+    .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
+    .map<LabOrderTarget>(e => ({
+      encounterId: e.id,
+      type: "OPD",
+      code: e.code,
+      where: departmentName(db, e.departmentId),
+      doctor: staffName(getStaff(db, e.doctorId)),
+      since: e.startedAt,
+    }));
+  return [...admissions, ...visits];
 }

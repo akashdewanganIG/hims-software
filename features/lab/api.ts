@@ -16,3 +16,12 @@ export function useLabWorklist(filters: {
 export function useLabOrderDetail(id: ID | null) {
   return useView("lab.order", { id }, { enabled: Boolean(id) });
 }
+
+/** A patient's live admission and open OPD visits, to file a new order to. */
+export function useLabOrderTargets(patientId: ID | null) {
+  return useView(
+    "lab.orderTargets",
+    { patientId: patientId ?? "" },
+    { enabled: Boolean(patientId) }
+  );
+}

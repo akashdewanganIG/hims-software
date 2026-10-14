@@ -436,6 +436,13 @@ export const priorityEnum = pgEnum("Priority", [
   "CRITICAL",
 ]);
 
+export const alertAudienceEnum = pgEnum("AlertAudience", [
+  "ALL",
+  "DEPARTMENT",
+  "ROLE",
+  "STAFF",
+]);
+
 export const complainantTypeEnum = pgEnum("ComplainantType", [
   "PATIENT",
   "ATTENDANT",
@@ -480,6 +487,15 @@ export const rosterStatusEnum = pgEnum("RosterStatus", [
   "LEAVE",
 ]);
 
+export const attendanceStatusEnum = pgEnum("AttendanceStatus", [
+  "PRESENT",
+  "ABSENT",
+  "LATE",
+  "HALF_DAY",
+  "LEAVE",
+  "OFF_DUTY",
+]);
+
 export const entityTypeEnum = pgEnum("EntityType", [
   "patient",
   "enquiry",
@@ -497,6 +513,7 @@ export const entityTypeEnum = pgEnum("EntityType", [
   "feedback",
   "staff",
   "roster",
+  "attendance",
   "user",
   "role",
   "alert",
@@ -2025,6 +2042,39 @@ export const roster = pgTable(
   ]
 );
 
+export const attendance = pgTable(
+  "attendance",
+  {
+    id: text("id").primaryKey(),
+    /** Insertion order, so reloaded tables keep the order rows were created in. */
+    seq: serial("seq"),
+    staffId: text("staff_id").notNull(),
+    date: day("date").notNull(),
+    status: attendanceStatusEnum("status").notNull(),
+    checkInAt: instant("check_in_at"),
+    checkOutAt: instant("check_out_at"),
+    note: text("note"),
+    recordedById: text("recorded_by_id").notNull(),
+    createdAt: instant("created_at").notNull(),
+    updatedAt: instant("updated_at").notNull(),
+  },
+  (t): PgTableExtraConfigValue[] => [
+    uniqueIndex("attendance_staff_id_date_key").on(t.staffId, t.date),
+    index("attendance_date_idx").on(t.date),
+    index("attendance_status_idx").on(t.status),
+    foreignKey({
+      name: "attendance_staff_id_fkey",
+      columns: [t.staffId],
+      foreignColumns: [staff.id],
+    }),
+    foreignKey({
+      name: "attendance_recorded_by_id_fkey",
+      columns: [t.recordedById],
+      foreignColumns: [staff.id],
+    }),
+  ]
+);
+
 // ------------------------------------------------------------------
 // Alerts & activity
 // ------------------------------------------------------------------
@@ -2037,8 +2087,35 @@ export const alerts = pgTable(
     /** Insertion order, so reloaded tables keep the order rows were created in. */
     seq: serial("seq"),
     senderId: text("sender_id").notNull(),
+    audience: alertAudienceEnum("audience"),
+    audienceId: text("audience_id"),
+    audienceLabel: text("audience_label")
+      .notNull()
+      .default("Previously selected recipients"),
     recipientIds: text("recipient_ids").array().notNull(),
     readByIds: text("read_by_ids").array().notNull(),
+    acknowledgementRequired: boolean("acknowledgement_required")
+      .notNull()
+      .default(false),
+    acknowledgements: jsonb("acknowledgements")
+      .$type<Array<{ staffId: string; acknowledgedAt: string }>>()
+      .notNull()
+      .default([]),
+    patientId: text("patient_id"),
+    admissionId: text("admission_id"),
+    dueAt: instant("due_at"),
+    escalationRecipientId: text("escalation_recipient_id"),
+    escalationLabel: text("escalation_label"),
+    participantStates: jsonb("participant_states")
+      .$type<
+        Array<{
+          staffId: string;
+          status: "OPEN" | "RESOLVED" | "ARCHIVED";
+          changedAt: string;
+        }>
+      >()
+      .notNull()
+      .default([]),
     category: text("category").notNull(),
     subject: text("subject").notNull(),
     message: text("message").notNull(),
@@ -2048,9 +2125,26 @@ export const alerts = pgTable(
   (t): PgTableExtraConfigValue[] => [
     index("alerts_created_at_idx").on(t.createdAt),
     index("alerts_sender_id_idx").on(t.senderId),
+    index("alerts_due_at_idx").on(t.dueAt),
+    index("alerts_patient_id_idx").on(t.patientId),
     foreignKey({
       name: "alerts_sender_id_fkey",
       columns: [t.senderId],
+      foreignColumns: [staff.id],
+    }),
+    foreignKey({
+      name: "alerts_patient_id_fkey",
+      columns: [t.patientId],
+      foreignColumns: [patients.id],
+    }),
+    foreignKey({
+      name: "alerts_admission_id_fkey",
+      columns: [t.admissionId],
+      foreignColumns: [admissions.id],
+    }),
+    foreignKey({
+      name: "alerts_escalation_recipient_id_fkey",
+      columns: [t.escalationRecipientId],
       foreignColumns: [staff.id],
     }),
   ]

@@ -33,8 +33,9 @@
     "e2e:ipd": "node scripts/e2e/ipd-journey.mjs",
     "e2e:roles": "tsx scripts/e2e/role-tour.ts",
     "e2e:access": "node scripts/e2e/access-journey.mjs",
+    "e2e:alerts": "node scripts/e2e/alerts-journey.mjs",
     "e2e:records": "node scripts/e2e/records-journey.mjs",
-    "e2e": "npm run e2e:roles && npm run e2e:opd && npm run e2e:ipd && npm run e2e:access && npm run e2e:records"
+    "e2e": "npm run e2e:roles && npm run e2e:opd && npm run e2e:ipd && npm run e2e:access && npm run e2e:alerts && npm run e2e:records"
   },
   "engines": {
     "node": ">=20.9.0"

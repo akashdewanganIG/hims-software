@@ -22,6 +22,7 @@ const TONE_BY_STATUS: Record<string, SemanticTone> = {
   ACTIVE: "active",
   FINAL: "active",
   ON_DUTY: "active",
+  PRESENT: "active",
 
   // In progress
   CHECKED_IN: "progress",
@@ -56,12 +57,16 @@ const TONE_BY_STATUS: Record<string, SemanticTone> = {
   DRAFT: "pending",
   ON_LEAVE: "pending",
   LEAVE: "pending",
+  LATE: "pending",
+  HALF_DAY: "pending",
+  NOT_MARKED: "pending",
 
   // Stopped / attention
   CANCELLED: "danger",
   NO_SHOW: "danger",
   MAINTENANCE: "danger",
   OVERDUE: "danger",
+  ABSENT: "danger",
 
   // Closed / inactive
   CLOSED: "neutral",
@@ -71,6 +76,7 @@ const TONE_BY_STATUS: Record<string, SemanticTone> = {
   INACTIVE: "neutral",
   NOT_REQUIRED: "neutral",
   OFF: "neutral",
+  OFF_DUTY: "neutral",
 };
 
 const LABEL_OVERRIDE: Record<string, string> = {
@@ -81,6 +87,9 @@ const LABEL_OVERRIDE: Record<string, string> = {
   PARTIALLY_PAID: "Partly paid",
   NOT_REQUIRED: "Not required",
   ON_LEAVE: "On leave",
+  HALF_DAY: "Half day",
+  OFF_DUTY: "Off duty",
+  NOT_MARKED: "Not marked",
 };
 
 function normalise(status: string) {

@@ -1,5 +1,7 @@
 import {
   SYSTEM_ROLES,
+  type AttendanceRecord,
+  type AttendanceStatus,
   type Database,
   type ID,
   type ISODate,
@@ -27,6 +29,75 @@ import {
 
 export function rosterFor(db: Database, staffId: ID, date: ISODate) {
   return db.roster.find(r => r.staffId === staffId && r.date === date);
+}
+
+export function attendanceFor(db: Database, staffId: ID, date: ISODate) {
+  return db.attendance.find(r => r.staffId === staffId && r.date === date);
+}
+
+export function setAttendance(
+  tx: Tx,
+  input: {
+    staffId: ID;
+    date: ISODate;
+    status: AttendanceStatus;
+    checkInAt?: string;
+    checkOutAt?: string;
+    note?: string;
+  }
+): AttendanceRecord {
+  const staff = must(tx.db.staff, input.staffId, "Staff member");
+  assert(
+    staff.status !== "INACTIVE",
+    `${staff.firstName} ${staff.lastName} is inactive.`
+  );
+  assert(
+    input.date <= isoDate(tx.now),
+    "Attendance cannot be recorded for a future date. Use the duty roster for future scheduling."
+  );
+
+  const recordsTime = ["PRESENT", "LATE", "HALF_DAY"].includes(input.status);
+  const checkInAt = recordsTime ? input.checkInAt || undefined : undefined;
+  const checkOutAt = recordsTime ? input.checkOutAt || undefined : undefined;
+  assert(!checkOutAt || checkInAt, "Add a check-in time before check-out.");
+  if (checkInAt)
+    assert(!Number.isNaN(Date.parse(checkInAt)), "Check-in time is invalid.");
+  if (checkOutAt) {
+    assert(!Number.isNaN(Date.parse(checkOutAt)), "Check-out time is invalid.");
+    assert(
+      Date.parse(checkOutAt) > Date.parse(checkInAt!),
+      "Check-out must be after check-in."
+    );
+  }
+
+  let row = attendanceFor(tx.db, staff.id, input.date);
+  const created = !row;
+  if (!row) {
+    const now = nowIso(tx);
+    row = {
+      id: newId(tx, "att"),
+      staffId: staff.id,
+      date: input.date,
+      status: input.status,
+      recordedById: tx.actorId,
+      createdAt: now,
+      updatedAt: now,
+    };
+    tx.db.attendance.push(row);
+  }
+  row.status = input.status;
+  row.checkInAt = checkInAt;
+  row.checkOutAt = checkOutAt;
+  row.note = input.note?.trim() || undefined;
+  row.recordedById = tx.actorId;
+  touch(tx, row);
+  log(tx, {
+    entityType: "attendance",
+    entityId: row.id,
+    action: created ? "recorded" : "updated",
+    summary: `${staff.firstName} ${staff.lastName} marked ${input.status.replace("_", " ").toLowerCase()} for ${input.date}`,
+  });
+  return row;
 }
 
 /**

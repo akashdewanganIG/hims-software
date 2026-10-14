@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 
 import {
   ArrowRightLeft,
+  Bell,
   CheckCheck,
   DoorOpen,
   Flask,
@@ -31,6 +32,7 @@ import {
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { CategorySwitcher } from "@/components/ui/category-switcher";
+import { useConfirm } from "@/components/ui/confirm-provider";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { Tag } from "@/components/ui/tag";
 import {
@@ -40,6 +42,7 @@ import {
 } from "@/features/clinical/components";
 import { useAdmission, type AdmissionDetail } from "@/features/ipd/api";
 import {
+  AdmissionAlertDialog,
   CareOrderDialog,
   NoteDialog,
   TransferDialog,
@@ -215,6 +218,7 @@ function AdmissionActions({
 }) {
   const { can } = useSession();
   const [noteOpen, setNoteOpen] = React.useState(false);
+  const [alertOpen, setAlertOpen] = React.useState(false);
   const [transferOpen, setTransferOpen] = React.useState(false);
   const [confirmDischarge, setConfirmDischarge] = React.useState(false);
   const { admission } = detail;
@@ -251,6 +255,10 @@ function AdmissionActions({
           Add note
         </Button>
       ) : null}
+      <Button variant="outline" onClick={() => setAlertOpen(true)}>
+        <Bell className="size-4" />
+        Add alert
+      </Button>
       {live && can("ipd.transfer") ? (
         <Button variant="outline" onClick={() => setTransferOpen(true)}>
           <ArrowRightLeft className="size-4" />
@@ -268,6 +276,11 @@ function AdmissionActions({
         onOpenChange={setNoteOpen}
         admissionId={admission.id}
         hasAdmissionNote={detail.notes.some(n => n.type === "ADMISSION")}
+      />
+      <AdmissionAlertDialog
+        open={alertOpen}
+        onOpenChange={setAlertOpen}
+        detail={detail}
       />
       <TransferDialog
         open={transferOpen}
@@ -296,6 +309,7 @@ function AdmissionActions({
 
 function TransferBanner({ detail }: { detail: AdmissionDetail }) {
   const { can } = useSession();
+  const confirm = useConfirm();
   const complete = useAction(
     "ipd.completeTransfer",
     () => ({ admissionId: detail.admission.id }),
@@ -307,6 +321,7 @@ function TransferBanner({ detail }: { detail: AdmissionDetail }) {
     { success: "Transfer cancelled — held bed released" }
   );
   const t = detail.admission.pendingTransfer!;
+  const target = `${detail.pendingTransferBed!.ward} · ${detail.pendingTransferBed!.code}`;
   return (
     <Alert
       tone="info"
@@ -317,14 +332,30 @@ function TransferBanner({ detail }: { detail: AdmissionDetail }) {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => cancel.mutate()}
+              onClick={() =>
+                confirm({
+                  title: "Cancel this transfer?",
+                  description: `The patient stays in the current bed and the held bed (${target}) is released for other admissions.`,
+                  confirmText: "Cancel transfer",
+                  variant: "destructive",
+                  onConfirm: () => cancel.mutateAsync(),
+                })
+              }
               disabled={cancel.isPending}
             >
               Cancel
             </Button>
             <Button
               size="sm"
-              onClick={() => complete.mutate()}
+              onClick={() =>
+                confirm({
+                  title: "Complete the move?",
+                  description: `Confirm the patient is now in ${target}. The stay in the current bed is billed up to now and that bed is sent for cleaning.`,
+                  confirmText: "Complete move",
+                  icon: ArrowRightLeft,
+                  onConfirm: () => complete.mutateAsync(),
+                })
+              }
               disabled={complete.isPending}
             >
               Complete move
@@ -549,6 +580,7 @@ function Notes({ detail }: { detail: AdmissionDetail }) {
 
 function Orders({ detail }: { detail: AdmissionDetail }) {
   const { can } = useSession();
+  const confirm = useConfirm();
   const [careOpen, setCareOpen] = React.useState(false);
   const [showRx, setShowRx] = React.useState(false);
   const [showLab, setShowLab] = React.useState(false);
@@ -625,7 +657,7 @@ function Orders({ detail }: { detail: AdmissionDetail }) {
               />
             ) : null}
             {detail.labOrders.map(o => (
-              <LabOrderCard key={o.id} order={o} />
+              <LabOrderCard key={o.id} order={o} showContext={false} />
             ))}
             {!detail.labOrders.length && !showLab ? (
               <p className="py-3 text-center text-sm text-muted-foreground">
@@ -654,6 +686,7 @@ function Orders({ detail }: { detail: AdmissionDetail }) {
               {detail.careOrders.map(o => (
                 <li
                   key={o.id}
+                  data-fresh-id={o.id}
                   className="flex items-start justify-between gap-3 py-2 first:pt-0 last:pb-0"
                 >
                   <div className="min-w-0">
@@ -677,7 +710,17 @@ function Orders({ detail }: { detail: AdmissionDetail }) {
                           aria-label="Mark completed"
                           title="Mark completed"
                           onClick={() =>
-                            end.mutate({ id: o.id, status: "COMPLETED" })
+                            confirm({
+                              title: "Mark this order completed?",
+                              description: `"${o.instruction}" is recorded as carried out and leaves the active orders.`,
+                              confirmText: "Mark completed",
+                              icon: CheckCheck,
+                              onConfirm: () =>
+                                end.mutateAsync({
+                                  id: o.id,
+                                  status: "COMPLETED",
+                                }),
+                            })
                           }
                         >
                           <CheckCheck className="size-4" />
@@ -686,7 +729,17 @@ function Orders({ detail }: { detail: AdmissionDetail }) {
                           size="sm"
                           variant="ghost"
                           onClick={() =>
-                            end.mutate({ id: o.id, status: "DISCONTINUED" })
+                            confirm({
+                              title: "Stop this order?",
+                              description: `"${o.instruction}" is discontinued and leaves the active orders. To resume it, a new order has to be written.`,
+                              confirmText: "Stop order",
+                              variant: "destructive",
+                              onConfirm: () =>
+                                end.mutateAsync({
+                                  id: o.id,
+                                  status: "DISCONTINUED",
+                                }),
+                            })
                           }
                         >
                           Stop
@@ -795,6 +848,7 @@ function Billing({ detail }: { detail: AdmissionDetail }) {
                 {bill.items.map(item => (
                   <tr
                     key={item.id}
+                    data-fresh-id={item.id}
                     className="border-b border-border/80 last:border-0"
                   >
                     <td className="px-4 py-2 text-xs text-muted-foreground">

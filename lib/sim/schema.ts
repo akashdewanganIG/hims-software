@@ -433,6 +433,16 @@ export type FollowUpStatus = (typeof FOLLOW_UP_STATUSES)[number];
 export const ROSTER_STATUSES = ["SCHEDULED", "OFF", "LEAVE"] as const;
 export type RosterStatus = (typeof ROSTER_STATUSES)[number];
 
+export const ATTENDANCE_STATUSES = [
+  "PRESENT",
+  "ABSENT",
+  "LATE",
+  "HALF_DAY",
+  "LEAVE",
+  "OFF_DUTY",
+] as const;
+export type AttendanceStatus = (typeof ATTENDANCE_STATUSES)[number];
+
 /* ------------------------------------------------------------------ */
 /* Organisation & people                                               */
 /* ------------------------------------------------------------------ */
@@ -1099,6 +1109,18 @@ export interface RosterAssignment {
   note?: string;
 }
 
+/** One confirmed attendance record per staff member and calendar day. */
+export interface AttendanceRecord extends Timestamps {
+  id: ID;
+  staffId: ID;
+  date: ISODate;
+  status: AttendanceStatus;
+  checkInAt?: ISODateTime;
+  checkOutAt?: ISODateTime;
+  note?: string;
+  recordedById: ID;
+}
+
 /* ------------------------------------------------------------------ */
 /* Activity                                                            */
 /* ------------------------------------------------------------------ */
@@ -1120,6 +1142,7 @@ export type EntityType =
   | "feedback"
   | "staff"
   | "roster"
+  | "attendance"
   | "user"
   | "role"
   | "alert";
@@ -1139,12 +1162,46 @@ export interface ActivityEvent {
 export const ALERT_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
 export type AlertPriority = (typeof ALERT_PRIORITIES)[number];
 
+export const ALERT_AUDIENCES = ["ALL", "DEPARTMENT", "ROLE", "STAFF"] as const;
+export type AlertAudience = (typeof ALERT_AUDIENCES)[number];
+
+export interface AlertAcknowledgement {
+  staffId: ID;
+  acknowledgedAt: ISODateTime;
+}
+
+export const ALERT_STATES = ["OPEN", "RESOLVED", "ARCHIVED"] as const;
+export type AlertState = (typeof ALERT_STATES)[number];
+
+/** The current mailbox state for one participant; absence means OPEN. */
+export interface AlertParticipantState {
+  staffId: ID;
+  status: AlertState;
+  changedAt: ISODateTime;
+}
+
 /** A staff message. Recipients are resolved when it is sent for a stable audit trail. */
 export interface StaffAlert {
   id: ID;
   senderId: ID;
+  /** Absent only on alerts created before targeting metadata was introduced. */
+  audience?: AlertAudience;
+  audienceId?: ID;
+  /** Snapshot of the intended target, retained if its name later changes. */
+  audienceLabel: string;
   recipientIds: ID[];
   readByIds: ID[];
+  acknowledgementRequired: boolean;
+  acknowledgements: AlertAcknowledgement[];
+  /** Optional patient context. Admission-linked alerts always carry both ids. */
+  patientId?: ID;
+  admissionId?: ID;
+  /** Response deadline and the person who receives an automatic escalation. */
+  dueAt?: ISODateTime;
+  escalationRecipientId?: ID;
+  escalationLabel?: string;
+  /** Per-participant state so one recipient cannot hide another's alert. */
+  participantStates: AlertParticipantState[];
   category: string;
   subject: string;
   message: string;
@@ -1201,13 +1258,14 @@ export interface Database {
   feedback: Feedback[];
   shifts: Shift[];
   roster: RosterAssignment[];
+  attendance: AttendanceRecord[];
   alerts: StaffAlert[];
   activity: ActivityEvent[];
 }
 
 export type TableName = Exclude<keyof Database, "meta">;
 
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 export function emptyDatabase(now: ISODateTime): Database {
   return {
@@ -1250,6 +1308,7 @@ export function emptyDatabase(now: ISODateTime): Database {
     feedback: [],
     shifts: [],
     roster: [],
+    attendance: [],
     alerts: [],
     activity: [],
   };

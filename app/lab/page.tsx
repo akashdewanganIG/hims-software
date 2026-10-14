@@ -7,11 +7,12 @@ import {
   CheckCheck,
   Hourglass,
   Microscope,
+  Plus,
   TestTube,
   Timer,
 } from "@/components/icons";
 import { DataTable, type Column } from "@/components/shared/data-table";
-import { PatientCell, RefCode } from "@/components/shared/entity";
+import { EntityLink, PatientCell, RefCode } from "@/components/shared/entity";
 import {
   ErrorBanner,
   PageHeader,
@@ -27,6 +28,7 @@ import { CategorySwitcher } from "@/components/ui/category-switcher";
 import { SearchInput } from "@/components/ui/search-input";
 import { Tag } from "@/components/ui/tag";
 import { useLabWorklist, type LabRow, type LabStage } from "@/features/lab/api";
+import { NewLabOrderDialog } from "@/features/lab/new-order-dialog";
 import { LabOrderSheet } from "@/features/lab/order-sheet";
 import {
   formatDateShort,
@@ -47,7 +49,8 @@ export default function LabPage() {
 
 function LabWorklist() {
   const params = useSearchParams();
-  const { staff } = useSession();
+  const { staff, can } = useSession();
+  const [newOpen, setNewOpen] = React.useState(false);
   const [stage, setStage] = React.useState<LabStage>(
     params.get("open")
       ? "all"
@@ -118,7 +121,20 @@ function LabWorklist() {
       id: "setting",
       header: "From",
       sortValue: r => r.setting,
-      cell: r => <span className="text-muted-foreground">{r.setting}</span>,
+      cell: r => (
+        <div className="min-w-0">
+          <p className="text-muted-foreground">{r.setting}</p>
+          {r.orderedFor ? (
+            <EntityLink
+              href={r.orderedFor.href}
+              module={r.orderedFor.module}
+              className="font-mono text-xs"
+            >
+              {r.orderedFor.code}
+            </EntityLink>
+          ) : null}
+        </div>
+      ),
     },
     {
       id: "ordered",
@@ -199,6 +215,14 @@ function LabWorklist() {
       <PageHeader
         title="Lab services"
         subtitle="Order worklist from sample collection to verified report. Verified results appear in the patient's record automatically."
+        actions={
+          can("lab.order") ? (
+            <Button onClick={() => setNewOpen(true)}>
+              <Plus className="size-4" />
+              New lab order
+            </Button>
+          ) : null
+        }
       />
       <ErrorBanner error={error} />
       <section className="grid-auto-fit-sm gap-3">
@@ -304,6 +328,17 @@ function LabWorklist() {
         />
       </Panel>
       <LabOrderSheet orderId={openId} onClose={() => setOpenId(null)} />
+      <NewLabOrderDialog
+        open={newOpen}
+        onOpenChange={setNewOpen}
+        onOrdered={() => {
+          // New orders wait for collection: show that stage, unfiltered, so
+          // the order can be scrolled to and highlighted.
+          setStage("collection");
+          setQ("");
+          setPriority("");
+        }}
+      />
     </PageShell>
   );
 }

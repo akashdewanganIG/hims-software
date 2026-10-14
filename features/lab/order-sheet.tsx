@@ -3,11 +3,12 @@
 import * as React from "react";
 import Link from "next/link";
 
-import { Printer } from "@/components/icons";
+import { CheckCircle2, Printer } from "@/components/icons";
 import { AllergyFlag, EntityLink } from "@/components/shared/entity";
 import { Field, PriorityBadge, StatusBadge } from "@/components/shared/page";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-provider";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { Input } from "@/components/ui/input";
 import { SelectField } from "@/components/ui/select-field";
@@ -22,7 +23,11 @@ import {
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Stepper } from "@/components/ui/stepper";
-import { FlagMark, LabOrderCard } from "@/features/clinical/components";
+import {
+  FlagMark,
+  LabOrderCard,
+  OrderContextLink,
+} from "@/features/clinical/components";
 import { useAction } from "@/lib/api/client";
 import { flagFor } from "@/lib/domain/lab";
 import { formatDateTime, formatDuration, humanize } from "@/lib/format";
@@ -57,6 +62,7 @@ export function LabOrderSheet({
   onClose: () => void;
 }) {
   const { can } = useSession();
+  const confirm = useConfirm();
   const { data, isLoading } = useLabOrderDetail(orderId);
   const [values, setValues] = React.useState<
     Record<string, Record<string, string>>
@@ -147,7 +153,8 @@ export function LabOrderSheet({
                     <PriorityBadge priority={data.order.priority} />
                   ) : null}
                 </div>
-                <SheetDescription>
+                <SheetDescription className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                  <OrderContextLink context={data.view.orderedFor} />
                   {data.setting} · ordered{" "}
                   {formatDateTime(data.order.orderedAt)} by{" "}
                   {data.view.orderedBy}
@@ -386,7 +393,15 @@ export function LabOrderSheet({
                 {status === "RESULT_READY" && can("lab.verify") ? (
                   <Button
                     variant="raised"
-                    onClick={() => verify.mutate()}
+                    onClick={() =>
+                      confirm({
+                        title: `Verify and release ${data.order.code}?`,
+                        description: `The results are signed off and released to ${data.patient.name}'s record, where clinicians act on them. Check every value and flag first.`,
+                        confirmText: "Verify & release",
+                        icon: CheckCircle2,
+                        onConfirm: () => verify.mutateAsync(),
+                      })
+                    }
                     disabled={verify.isPending}
                   >
                     Verify & release

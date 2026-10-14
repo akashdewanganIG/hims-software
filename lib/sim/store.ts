@@ -176,12 +176,15 @@ export function loadDatabase(): Promise<Database> {
     if (
       stored &&
       (stored.db.meta.schemaVersion === SCHEMA_VERSION ||
-        (stored.db.meta.schemaVersion === 6 && SCHEMA_VERSION === 7))
+        ((stored.db.meta.schemaVersion === 6 ||
+          stored.db.meta.schemaVersion === 7) &&
+          SCHEMA_VERSION === 8))
     ) {
       db = stored.db;
       userChanges = stored.userChanges ?? 0;
-      if (db.meta.schemaVersion === 6) {
+      if (db.meta.schemaVersion < SCHEMA_VERSION) {
         db.alerts ??= [];
+        db.attendance ??= [];
         db.meta.schemaVersion = SCHEMA_VERSION;
         void writeStored(db);
       }

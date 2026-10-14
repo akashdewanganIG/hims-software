@@ -33,6 +33,8 @@ import type {
 } from "@/lib/sim/schema";
 import { bedDays } from "@/lib/sim/time";
 import { fileOf } from "@/lib/domain/files";
+import { staffCanAccessIpd } from "@/lib/domain/alerts";
+import { isOnDuty } from "@/lib/domain/wfm";
 import {
   labOrderView,
   prescriptionView,
@@ -190,6 +192,13 @@ export interface AdmissionDetail {
     fileName: string;
   }>;
   sourceVisit?: { id: ID; code: string };
+  alertShortcuts: Array<{
+    id: ID;
+    name: string;
+    roleId: string;
+    label: string;
+    kind: "CONSULTANT" | "ASSIGNED_NURSE" | "DUTY_NURSE" | "DUTY_DOCTOR";
+  }>;
 }
 export function admissionView(
   db: Database,
@@ -208,6 +217,52 @@ export function admissionView(
   const source = admission.sourceEncounterId
     ? db.encounters.find(e => e.id === admission.sourceEncounterId)
     : undefined;
+  const shortcutStaff: AdmissionDetail["alertShortcuts"] = [];
+  const addShortcut = (
+    staffId: ID | undefined,
+    label: string,
+    kind: AdmissionDetail["alertShortcuts"][number]["kind"]
+  ) => {
+    const member = getStaff(db, staffId);
+    if (
+      !member ||
+      member.status === "INACTIVE" ||
+      !staffCanAccessIpd(db, member.id) ||
+      shortcutStaff.some(row => row.id === member.id)
+    )
+      return;
+    shortcutStaff.push({
+      id: member.id,
+      name: staffName(member),
+      roleId: member.role,
+      label,
+      kind,
+    });
+  };
+  addShortcut(admission.doctorId, "Consultant", "CONSULTANT");
+  const latestNurse = db.clinicalNotes
+    .filter(
+      note => note.admissionId === admission.id && note.type === "NURSING"
+    )
+    .sort((a, b) => b.at.localeCompare(a.at))[0];
+  addShortcut(latestNurse?.authorId, "Assigned nurse", "ASSIGNED_NURSE");
+  const onDuty = db.staff.filter(
+    member =>
+      member.departmentId === admission.departmentId &&
+      isOnDuty(db, member, now)
+  );
+  addShortcut(
+    onDuty.find(member => member.role === "NURSE")?.id,
+    "Duty nurse",
+    "DUTY_NURSE"
+  );
+  addShortcut(
+    onDuty.find(
+      member => member.role === "DOCTOR" && member.id !== admission.doctorId
+    )?.id,
+    "Duty doctor",
+    "DUTY_DOCTOR"
+  );
   return {
     row: admissionRow(db, admission, now),
     admission,
@@ -312,6 +367,7 @@ export function admissionView(
         fileName: d.fileName,
       })),
     sourceVisit: source ? { id: source.id, code: source.code } : undefined,
+    alertShortcuts: shortcutStaff,
   };
 }
 

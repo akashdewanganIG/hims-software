@@ -18,7 +18,12 @@ import {
   updateRole,
   updateUser,
 } from "../domain/admin";
-import { markAlertRead, sendAlert } from "../domain/alerts";
+import {
+  acknowledgeAlert,
+  markAlertRead,
+  sendAlert,
+  setAlertState,
+} from "../domain/alerts";
 import {
   addManualCharge,
   cancelInvoice,
@@ -132,6 +137,7 @@ import {
   copyWeek,
   createStaff,
   removeStaffPhoto,
+  setAttendance,
   setRoster,
   setStaffPhoto,
   setStaffStatus,
@@ -140,7 +146,9 @@ import {
 import type { Action } from "../rbac";
 import {
   ADMISSION_SOURCES,
+  ATTENDANCE_STATUSES,
   ALERT_PRIORITIES,
+  ALERT_STATES,
   APPOINTMENT_TYPES,
   BLOOD_GROUPS,
   CARE_ORDER_TYPES,
@@ -324,6 +332,11 @@ export const OPERATIONS = {
       subject: line(120),
       message: text(2000),
       priority: z.enum(ALERT_PRIORITIES),
+      acknowledgementRequired: z.boolean().optional(),
+      patientId: optionalId,
+      admissionId: optionalId,
+      dueAt: dateTime.optional(),
+      escalationRecipientId: optionalId,
     }),
     run: (tx, input) =>
       sendAlert(tx, {
@@ -337,6 +350,18 @@ export const OPERATIONS = {
     input: z.object({ alertId: id }),
     run: (tx, input) => markAlertRead(tx, input.alertId),
     silent: true,
+  }),
+  "alerts.acknowledge": op({
+    label: "Acknowledge alert",
+    allow: [],
+    input: z.object({ alertId: id }),
+    run: (tx, input) => acknowledgeAlert(tx, input.alertId),
+  }),
+  "alerts.setState": op({
+    label: "Change alert status",
+    allow: [],
+    input: z.object({ alertId: id, status: z.enum(ALERT_STATES) }),
+    run: (tx, input) => setAlertState(tx, input.alertId, input.status),
   }),
 
   /* Patients ------------------------------------------------------- */
@@ -1197,6 +1222,24 @@ export const OPERATIONS = {
       copyWeek(tx, {
         fromWeekStart: i.fromWeekStart,
         departmentId: i.departmentId || undefined,
+      }),
+  }),
+  "wfm.setAttendance": op({
+    label: "Record attendance",
+    allow: ["wfm.manage"],
+    input: z.object({
+      staffId: id,
+      date,
+      status: z.enum(ATTENDANCE_STATUSES),
+      checkInAt: z.union([dateTime, z.literal("")]).optional(),
+      checkOutAt: z.union([dateTime, z.literal("")]).optional(),
+      note: line(500).optional(),
+    }),
+    run: (tx, i) =>
+      setAttendance(tx, {
+        ...i,
+        checkInAt: i.checkInAt || undefined,
+        checkOutAt: i.checkOutAt || undefined,
       }),
   }),
   "wfm.createStaff": op({

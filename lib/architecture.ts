@@ -202,7 +202,8 @@ export const ARCH_MODULES: ArchModule[] = [
       {
         label: "Lab worklist",
         route: "/lab",
-        description: "Collection, processing, entry and verification.",
+        description:
+          "New orders for an admission or OPD visit, then collection, processing, entry and verification.",
       },
       {
         label: "Lab report",
@@ -246,12 +247,13 @@ export const ARCH_MODULES: ArchModule[] = [
     area: "operations",
     label: "Operations centre",
     description:
-      "Hospital-wide situation: queues, occupancy, lab TAT, staffing and alerts.",
+      "Hospital-wide situation: queues, occupancy, lab TAT, staffing and the issues needing attention.",
     pages: [
       {
         label: "Command centre",
         route: "/operations",
-        description: "Alerts and live figures across departments.",
+        description:
+          "Issues needing attention and live figures across departments.",
       },
     ],
     owns: [],

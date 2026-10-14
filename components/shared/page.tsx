@@ -377,7 +377,11 @@ export function Timeline({
   return (
     <ol className="relative space-y-0">
       {entries.map((entry, index) => (
-        <li key={entry.id} className="relative flex gap-3 pb-4 last:pb-0">
+        <li
+          key={entry.id}
+          data-fresh-id={entry.id}
+          className="relative flex gap-3 rounded-md pb-4 last:pb-0"
+        >
           {index < entries.length - 1 ? (
             <span
               aria-hidden="true"

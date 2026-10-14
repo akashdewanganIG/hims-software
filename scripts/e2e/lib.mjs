@@ -14,7 +14,7 @@ mkdirSync(OUT, { recursive: true });
  * Signs in through the sign-in screen: the role from the dropdown, then its
  * suggested login (preselected) with "Sign in as …".
  */
-export async function signInAs(page, roleName) {
+export async function signInAs(page, roleName, loginName) {
   // A cold dev server compiles the page on first request.
   await page.goto(`${BASE}/login`, { timeout: 180_000 });
   const role = page.getByRole("combobox", { name: "Role" });
@@ -23,6 +23,12 @@ export async function signInAs(page, roleName) {
   await page
     .getByRole("option", { name: new RegExp(`^${roleName}(?![A-Za-z])`) })
     .click();
+  if (loginName)
+    await page
+      .getByRole("radio")
+      .filter({ hasText: loginName })
+      .first()
+      .click();
   await page.getByRole("button", { name: /^Sign in as/ }).click();
   await page.waitForURL(url => !url.pathname.startsWith("/login"), {
     timeout: 60_000,
@@ -59,7 +65,7 @@ export async function launch(prefix) {
   };
   const toast = text =>
     page.getByText(text).first().waitFor({ timeout: 15_000 });
-  const login = role => signInAs(page, role);
+  const login = (role, loginName) => signInAs(page, role, loginName);
   const finish = async () => {
     const noise = errors.filter(e => !/favicon/.test(e));
     console.log(
@@ -71,6 +77,17 @@ export async function launch(prefix) {
     if (noise.length) process.exitCode = 1;
   };
   return { browser, page, step, toast, login, finish, mode };
+}
+
+/**
+ * Answers the confirmation that guards a significant action: the dialog
+ * titled `title` (string or RegExp), then its `button`.
+ */
+export async function confirmAction(page, title, button) {
+  await page
+    .getByRole("dialog", { name: title })
+    .getByRole("button", { name: button, exact: true })
+    .click();
 }
 
 /** Clicks a download button and checks a real PDF arrives. */

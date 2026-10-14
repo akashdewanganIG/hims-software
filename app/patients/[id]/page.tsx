@@ -739,6 +739,7 @@ function Documents({
           {data.documents.map(d => (
             <li
               key={d.id}
+              data-fresh-id={d.id}
               className="flex flex-col gap-2 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between"
             >
               <div className="flex min-w-0 items-center gap-3">

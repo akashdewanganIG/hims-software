@@ -8,6 +8,7 @@
 //   npm run e2e:ipd
 import {
   BASE,
+  confirmAction,
   expectPdf,
   launch,
   registerThroughPicker,
@@ -17,8 +18,14 @@ import {
 const { page, step, toast, login, finish } = await launch("ipd");
 await login("Administrator");
 
+function localDateTimeInput(date) {
+  const offset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+}
+
 let patientName = "";
 let bedCode = "";
+let admissionUrl = "";
 await step("register and admit", async () => {
   await page.goto(`${BASE}/ipd`);
   await page.getByRole("button", { name: "Admit patient" }).first().click();
@@ -46,6 +53,7 @@ await step("register and admit", async () => {
     .fill("Community-acquired pneumonia");
   await dialog.getByRole("button", { name: "Admit", exact: true }).click();
   await page.waitForURL(/\/ipd\/adm_/, { timeout: 30_000 });
+  admissionUrl = page.url();
   await page.getByRole("button", { name: "Add note" }).waitFor();
   console.log(`(${patientName} → bed ${bedCode})`);
 });
@@ -62,6 +70,109 @@ await step("progress note", async () => {
   await toast("Note added");
 });
 
+await step("patient alert reaches one recipient", async () => {
+  const subject = `IPD review ${patientName}`;
+  await page.getByRole("button", { name: "Add alert" }).click();
+  const dialog = page.getByRole("dialog", { name: "Send an IPD alert" });
+  await dialog.getByRole("button", { name: /Consultant/ }).waitFor();
+  await dialog.getByRole("button", { name: /Consultant/ }).click();
+  await dialog.getByRole("combobox", { name: "Staff role" }).click();
+  await page.getByRole("option", { name: "Nurse", exact: true }).click();
+
+  const recipient = dialog.getByRole("combobox", { name: "Recipient" });
+  await recipient.click();
+  const targetNurse = (
+    await page.getByRole("option").nth(1).innerText()
+  ).trim();
+  await page.getByRole("option").nth(1).click();
+  await dialog.getByLabel("Require acknowledgement").check();
+  await dialog
+    .getByLabel("Response deadline")
+    .fill(localDateTimeInput(new Date(Date.now() + 30 * 60_000)));
+  await dialog.getByRole("combobox", { name: "Escalation role" }).click();
+  await page.getByRole("option", { name: "Doctor", exact: true }).click();
+  await dialog.getByRole("combobox", { name: "Escalate to" }).click();
+  await page.getByRole("option").nth(1).click();
+  await dialog.getByLabel("What is this about?").fill(subject);
+  await dialog
+    .getByLabel("Complete details")
+    .fill(
+      "Please review the latest observations and confirm the planned monitoring frequency during this shift."
+    );
+  await dialog.getByRole("button", { name: "Send alert" }).click();
+  await toast("Alert sent to 1 recipient");
+
+  await page.goto(`${BASE}/alerts`);
+  await page.getByRole("tab", { name: /^Sent/ }).click();
+  await page
+    .getByPlaceholder("Subject, details, sender or category")
+    .fill(subject);
+  const sentRow = page.locator("tbody tr", { hasText: subject });
+  await sentRow.waitFor({ timeout: 30_000 });
+  await sentRow.click();
+  const sentAlert = page.getByRole("dialog", { name: subject });
+  await sentAlert
+    .getByText(`Patient: ${patientName}`, { exact: false })
+    .waitFor();
+  await sentAlert.getByText(`Admission:`, { exact: false }).waitFor();
+  await sentAlert.getByRole("link", { name: "View admission" }).waitFor();
+  await sentAlert.getByText(/Response due/).waitFor();
+
+  await login("Nurse", targetNurse);
+  const notificationBell = page.getByRole("button", {
+    name: /unread alert/,
+  });
+  await notificationBell.waitFor({ timeout: 30_000 });
+  await notificationBell.click();
+  await page.getByRole("menuitem").filter({ hasText: subject }).click();
+  await page.waitForURL(/\/alerts\?alert=/, { timeout: 30_000 });
+  const receivedAlert = page.getByRole("dialog", { name: subject });
+  await receivedAlert.getByRole("link", { name: "View admission" }).waitFor();
+  await receivedAlert
+    .getByRole("button", { name: "Acknowledge alert" })
+    .click();
+  await confirmAction(page, "Acknowledge this alert?", "Acknowledge");
+  await toast("Alert acknowledged");
+  await receivedAlert.getByRole("button", { name: "Resolve" }).click();
+  await confirmAction(page, "Resolve this alert?", "Resolve");
+  await toast("Alert resolved");
+  await receivedAlert.getByRole("button", { name: "Close" }).click();
+
+  const status = page.getByRole("combobox", { name: "Alert status" });
+  await status.click();
+  await page.getByRole("option", { name: "Resolved", exact: true }).click();
+  await page
+    .getByPlaceholder("Subject, details, sender or category")
+    .fill(subject);
+  const receivedRow = page.locator("tbody tr", { hasText: subject });
+  await receivedRow.waitFor({ timeout: 30_000 });
+  await receivedRow.click();
+  await page
+    .getByRole("dialog", { name: subject })
+    .getByRole("button", { name: "Archive" })
+    .click();
+  await confirmAction(page, "Archive this alert?", "Archive");
+  await toast("Alert archived");
+  await page
+    .getByRole("dialog", { name: subject })
+    .getByRole("button", { name: "Close" })
+    .click();
+
+  await status.click();
+  await page.getByRole("option", { name: "Archived", exact: true }).click();
+  await page.locator("tbody tr", { hasText: subject }).click();
+  await page
+    .getByRole("dialog", { name: subject })
+    .getByRole("button", { name: "Reopen" })
+    .click();
+  await toast("Alert reopened");
+
+  await login("Administrator");
+  await page.goto(admissionUrl);
+  await page.getByRole("button", { name: "Add alert" }).waitFor();
+  console.log(`(sent to ${targetNurse})`);
+});
+
 let targetBed = "";
 await step("transfer", async () => {
   await page.getByRole("button", { name: "Transfer" }).click();
@@ -74,6 +185,7 @@ await step("transfer", async () => {
   await dialog.getByRole("button", { name: "Request transfer" }).click();
   await toast("Transfer requested");
   await page.getByRole("button", { name: "Complete move" }).click();
+  await confirmAction(page, "Complete the move?", "Complete move");
   await toast("Transfer completed");
   console.log(`(→ ${targetBed})`);
 });
@@ -95,6 +207,11 @@ await step("discharge summary", async () => {
     .getByLabel("Follow-up instructions")
     .fill("Review in General Medicine OPD in one week.");
   await page.getByRole("button", { name: "Finalise summary" }).click();
+  await confirmAction(
+    page,
+    "Finalise the discharge summary?",
+    "Finalise summary"
+  );
   await toast("Discharge summary finalised");
 });
 

@@ -2,11 +2,12 @@
 
 import * as React from "react";
 
-import { AlertTriangle, RotateCcw } from "@/components/icons";
+import { AlertTriangle, Pill, RotateCcw } from "@/components/icons";
 import { AllergyFlag, EntityLink } from "@/components/shared/entity";
 import { Field, StatusBadge } from "@/components/shared/page";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-provider";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { Input } from "@/components/ui/input";
 import {
@@ -34,6 +35,7 @@ export function DispenseSheet({
   onClose: () => void;
 }) {
   const { can } = useSession();
+  const confirm = useConfirm();
   const { data, isLoading } = useDispenseDetail(prescriptionId);
   const [qty, setQty] = React.useState<Record<string, string>>({});
   const [returning, setReturning] = React.useState<{
@@ -291,7 +293,15 @@ export function DispenseSheet({
                   {canDispense ? (
                     <Button
                       disabled={!lines.length || give.isPending}
-                      onClick={() => give.mutate(lines)}
+                      onClick={() =>
+                        confirm({
+                          title: `Dispense ${lines.length} item${lines.length === 1 ? "" : "s"} to ${data.patient.name}?`,
+                          description: `${formatINR(total)} is billed to the patient's ${data.setting === "IPD" ? "running bill" : "visit bill"} and the quantities are taken out of stock. Check each quantity before handing over.`,
+                          confirmText: "Dispense",
+                          icon: Pill,
+                          onConfirm: () => give.mutateAsync(lines),
+                        })
+                      }
                     >
                       {give.isPending ? "Dispensing…" : "Dispense"}
                     </Button>
