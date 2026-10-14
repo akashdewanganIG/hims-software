@@ -1,5 +1,5 @@
 /**
- * Builds a fresh simulation by *replaying* ~30 days of hospital activity
+ * Builds a fresh demo dataset by *replaying* ~30 days of hospital activity
  * through the same domain services the UI uses, on an event clock that ends
  * at "now". Nothing is written directly into transactional tables, so every
  * seeded record obeys the same integrity rules as live data — and whatever is
@@ -2341,7 +2341,16 @@ export function generateDatabase(
     }
   }
 
-  // A current staff alert makes the inbox demonstrable on first sign-in.
+  // Current staff alerts make each audience mode demonstrable on first sign-in.
+  alerts.sendAlert(tx(addMinutes(now, -55), opsManagers[0]!.id), {
+    audience: "ALL",
+    category: "Operations",
+    subject: "Hospital safety drill at 4 PM",
+    message:
+      "A hospital-wide safety drill starts at 4 PM. Continue urgent patient care, follow your department marshal's instructions and use the east assembly point if evacuation is announced.",
+    priority: "MEDIUM",
+  });
+
   alerts.sendAlert(tx(addMinutes(now, -45), opsManagers[0]!.id), {
     audience: "ROLE",
     audienceId: "NURSE",
@@ -2349,6 +2358,26 @@ export function generateDatabase(
     subject: "Review isolation-bed readiness",
     message:
       "Please confirm PPE stock, oxygen supply and housekeeping clearance for isolation beds before the evening handover.",
+    priority: "HIGH",
+  });
+
+  alerts.sendAlert(tx(addMinutes(now, -35), opsManagers[0]!.id), {
+    audience: "DEPARTMENT",
+    audienceId: labTechs[0]!.departmentId,
+    category: "Laboratory",
+    subject: "Chemistry analyser maintenance window",
+    message:
+      "The chemistry analyser is reserved for preventive maintenance from 2:00 PM to 2:45 PM. Prioritise urgent samples beforehand and route time-critical work to the backup analyser.",
+    priority: "MEDIUM",
+  });
+
+  alerts.sendAlert(tx(addMinutes(now, -25), opsManagers[0]!.id), {
+    audience: "STAFF",
+    audienceId: nurses[0]!.id,
+    category: "Clinical",
+    subject: "Confirm evening isolation-room handover",
+    message:
+      "Please confirm the isolation-room handover with the duty doctor by 3:30 PM and reply after the PPE, oxygen and cleaning checks are complete.",
     priority: "HIGH",
   });
 

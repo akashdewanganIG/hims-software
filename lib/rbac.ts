@@ -67,7 +67,7 @@ export const MODULE_DESCRIPTION: Record<Module, string> = {
   complaints: "Complaint intake, SLA tracking and resolution.",
   feedback: "Patient feedback, scores and follow-ups.",
   analytics: "Hospital performance trends and KPIs.",
-  admin: "User management, roles and permissions, simulation controls.",
+  admin: "User management, roles, permissions and hospital data controls.",
 };
 
 export const ACTIONS = [
@@ -194,7 +194,7 @@ export const ACTION_INFO: Record<Action, { label: string; hint?: string }> = {
     hint: "Lets the holder grant themselves anything else",
   },
   "simulation.reset": {
-    label: "Reset the simulation",
+    label: "Reset hospital data",
     hint: "Replaces all hospital data",
   },
 };
@@ -275,7 +275,7 @@ export const DEFAULT_ROLES: Record<SystemRole, RoleDefinition> = {
   ADMINISTRATOR: defineRole({
     name: "Administrator",
     description:
-      "Full access to every module, user management and the simulation controls.",
+      "Full access to every module, user management and hospital data controls.",
     modules: [...MODULES],
     actions: [...ACTIONS],
     homePath: "/",

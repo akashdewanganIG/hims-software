@@ -50,7 +50,7 @@ interface State {
 }
 
 /**
- * Simulation sign-in: pick a staff login, no passwords. In server mode the
+ * Demo sign-in: pick a staff login, no passwords. In server mode the
  * choice becomes a signed httpOnly session cookie and every request is
  * authorised on the server; in browser mode it is remembered per browser.
  * Access (role permissions or a custom set) is re-read whenever the data

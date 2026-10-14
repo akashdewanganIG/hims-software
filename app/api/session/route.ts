@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/** Sign in as a staff login (the simulation's role picker). */
+/** Sign in as a staff login from the demo role picker. */
 export async function POST(request: NextRequest) {
   try {
     assertServerMode();

@@ -72,7 +72,7 @@ export function recordDocument({
     info: {
       title: `${title} ${reference}`,
       author: HOSPITAL.name,
-      creator: "HIMS Simulation",
+      creator: "HIMS",
       subject: title,
     },
     header: asLetterhead({
@@ -156,7 +156,7 @@ export function recordDocument({
         margin: [40, 18, 40, 0],
         columns: [
           {
-            text: `Generated ${generated} · HIMS Simulation — fictional data, not a medical or tax document.`,
+            text: `Generated ${generated} · HIMS demo data — not a medical or tax document.`,
             fontSize: 7,
             color: MUTED,
           },

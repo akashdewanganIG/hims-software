@@ -24,9 +24,9 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "HIMS Simulation",
+  title: "HIMS",
   description:
-    "Hospital information management simulation — OPD, IPD, pharmacy, lab, beds, billing and records.",
+    "Hospital information management system for OPD, IPD, pharmacy, laboratory, beds, billing and records.",
 };
 
 /** The app ships a single light theme; keep native controls light too. */

@@ -158,7 +158,7 @@ export function subscribe(listener: () => void) {
 }
 
 export function getDb(): Database {
-  if (!current) throw new Error("Simulation not loaded yet");
+  if (!current) throw new Error("Hospital data is not loaded yet");
   return current;
 }
 

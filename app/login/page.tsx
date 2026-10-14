@@ -33,8 +33,8 @@ const shortName = (name: string) =>
     : (name.split(" ")[0] ?? name);
 
 /**
- * Simulation sign-in: choose a role, then one of its logins. Roles, logins
- * and permissions come straight from Administration → User management, so
+ * Demo sign-in: choose a role, then one of its logins. Roles, logins and
+ * permissions come straight from Administration → User management, so
  * whatever an Administrator changes shows here at once.
  */
 export default function LoginPage() {
@@ -73,13 +73,13 @@ export default function LoginPage() {
         <main className="flex min-w-0 flex-col">
           <header className="flex items-center justify-between gap-3">
             <LogoPlaceholder />
-            <Tag tone="neutral">Simulation · fictional data</Tag>
+            <Tag tone="neutral">Demo environment · fictional data</Tag>
           </header>
 
           <div className="my-auto w-full py-10">
             <div className="mx-auto w-full max-w-[25rem]">
               <p className="text-xs font-semibold uppercase tracking-[0.08em] text-primary">
-                HIMS Simulation
+                HIMS
               </p>
               <h1 className="mt-2 font-display text-2xl font-bold tracking-tight text-foreground">
                 Sign in
@@ -232,14 +232,15 @@ export default function LoginPage() {
 
               <p className="mt-5 flex items-start gap-2 text-xs leading-5 text-muted-foreground">
                 <Lock className="mt-0.5 size-3.5 shrink-0" />
-                No password in the simulation. Roles, logins and permissions are
-                managed by Administrators in Administration → User management.
+                No password is required for this demo. Roles, logins and
+                permissions are managed by Administrators in Administration →
+                User management.
               </p>
             </div>
           </div>
 
           <footer className="text-[0.6875rem] text-text-tertiary">
-            HIMS Simulation · every name, patient and figure is fictional.
+            HIMS · every name, patient and figure is fictional.
           </footer>
         </main>
 

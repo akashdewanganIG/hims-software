@@ -1,6 +1,6 @@
 /**
- * Fictional reference data for the simulated hospital ("HIMS
- * Simulation"). Names, numbers and people are invented.
+ * Fictional reference data for the demo hospital. Names, numbers and people
+ * are invented.
  */
 import type {
   DepartmentKind,
@@ -14,8 +14,8 @@ import type {
 } from "./schema";
 
 export const HOSPITAL = {
-  name: "HIMS Simulation",
-  shortName: "HIMS Simulation",
+  name: "HIMS",
+  shortName: "HIMS",
   address: "Plot 14, Baner–Pashan Link Road, Pune 411045",
   phone: "020 4100 2200",
   gstin: "27AAACH0000X1Z5",

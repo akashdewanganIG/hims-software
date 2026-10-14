@@ -1,5 +1,5 @@
 /**
- * HIMS simulation — PostgreSQL schema (Drizzle ORM).
+ * HIMS demo — PostgreSQL schema (Drizzle ORM).
  *
  * Mirrors lib/sim/schema.ts table for table and field for field: the
  * property names are the application's row keys, the columns are
@@ -13,7 +13,7 @@
  * each other, e.g. an IPD encounter and its admission, inside a single
  * transaction.
  *
- * Timestamps are written by the application's clock (the simulation replays
+ * Timestamps are written by the application's clock (the demo replays
  * history), so no column defaults to now() except the server's own
  * bookkeeping tables.
  */
@@ -559,7 +559,7 @@ export const staff = pgTable(
   ]
 );
 
-/** A login for the simulation. Every user is a staff member. */
+/** A login for the demo. Every user is a staff member. */
 /**
  * An access role: the modules its members can open and the actions they can
  * take (keys from lib/rbac.ts). Seeded roles keep their SYSTEM_ROLES key as

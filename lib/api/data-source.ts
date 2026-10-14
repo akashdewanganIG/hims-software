@@ -241,7 +241,7 @@ export async function endSession() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Simulation status                                                   */
+/* System status                                                       */
 /* ------------------------------------------------------------------ */
 
 export interface DataStatus {

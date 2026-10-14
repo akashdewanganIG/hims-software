@@ -2,7 +2,7 @@
  * Cross-module integrity checks — the "Functional Integrity Rules" of the
  * implementation brief, executable. Used by `npm run verify:sim`, the test
  * suite (after every operation), the database verifier and the in-app
- * simulation panel.
+ * system status panel.
  *
  * Every lookup is indexed up front so a full check stays fast on the seeded
  * hospital (~100k rows).

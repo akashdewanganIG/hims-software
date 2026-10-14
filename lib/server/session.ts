@@ -1,6 +1,6 @@
 /**
  * Server-side session for database mode: an HMAC-signed, httpOnly cookie
- * naming the signed-in user. The simulation has no passwords (you pick a
+ * naming the signed-in user. The demo has no passwords (you pick a
  * staff login), but once signed in every request is attributed and
  * authorised on the server, never on the client's word.
  */

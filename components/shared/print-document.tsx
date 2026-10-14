@@ -71,7 +71,7 @@ export function PrintDocument({
         <footer className="mt-10 flex items-end justify-between gap-6 border-t border-neutral-300 pt-4 text-xs text-neutral-600">
           <div>{footer}</div>
           <p>
-            Generated {formatDateTime(new Date())} · Simulation — not a medical
+            Generated {formatDateTime(new Date())} · Demo data — not a medical
             or tax document
           </p>
         </footer>

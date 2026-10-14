@@ -130,7 +130,7 @@ async function loadState(): Promise<EngineState> {
 
   // Version 7 only adds the alerts table. The SQL migration creates it, so
   // existing v6 hospital data can be adopted without rebuilding the entire
-  // simulation (and without discarding user changes).
+  // demo dataset (and without discarding user changes).
   if (meta.schemaVersion === 6 && SCHEMA_VERSION === 7) {
     const db = await readTables(database(), meta);
     db.meta.schemaVersion = SCHEMA_VERSION;

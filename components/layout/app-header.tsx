@@ -10,7 +10,7 @@ import { staffName } from "@/lib/api/lookup";
 import { HOSPITAL } from "@/lib/sim/reference";
 import { useSession } from "@/lib/session";
 
-import { SimulationMenu } from "./simulation-menu";
+import { SystemMenu } from "./simulation-menu";
 
 /** Same composition as the Ralli Wolf header: context left, controls right. */
 export function AppHeader({ onMenuClick }: { onMenuClick: () => void }) {
@@ -44,7 +44,7 @@ export function AppHeader({ onMenuClick }: { onMenuClick: () => void }) {
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          <SimulationMenu />
+          <SystemMenu />
           <ProfileDropdown
             user={{
               name: staffName(staff),

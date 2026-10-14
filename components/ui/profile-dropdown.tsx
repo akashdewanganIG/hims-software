@@ -23,8 +23,8 @@ export interface UserProfile {
 }
 
 /**
- * Ralli Wolf's account menu, with the simulation's actions: switching role
- * replaces profile/password management, which a simulation does not need.
+ * Compact account menu with role switching and workspace actions in place of
+ * profile and password management for the password-free demo environment.
  */
 export function ProfileDropdown({
   user,

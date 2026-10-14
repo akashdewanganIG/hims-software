@@ -84,8 +84,8 @@ function useDataReady() {
 }
 
 /**
- * Loads the simulation, sends signed-out visitors to the role picker, gates
- * every module by role, and frames the page in the Ralli Wolf layout.
+ * Loads the hospital workspace, sends signed-out visitors to the role picker,
+ * gates every module by role, and frames the page in the Ralli Wolf layout.
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -112,7 +112,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return (
       <BootScreen
         failed
-        message="The simulation could not start"
+        message="The hospital workspace could not start"
         detail={failed}
       />
     );
@@ -130,7 +130,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         message={
           mode === "server"
             ? "Connecting to the hospital database…"
-            : "Preparing the hospital simulation…"
+            : "Preparing hospital data…"
         }
         detail={
           mode === "server"

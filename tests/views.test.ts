@@ -231,6 +231,74 @@ test("alerts are visible only to their recipients and sender", () => {
   assert.ok(categories(adminUser).includes("Isolation Governance"));
   assert.ok(categories(nurseUser).includes("Isolation Governance"));
   assert.ok(!categories(pharmacistUser).includes("Isolation Governance"));
+
+  const composer = prepareView(
+    hospital.db,
+    adminUser,
+    "alerts.composer",
+    {}
+  ).run(hospital.db, hospital.now) as {
+    roles: Array<{ id: string; label: string }>;
+    staff: Array<{ id: string; label: string; roleId: string; role: string }>;
+  };
+  const nurseRole = composer.roles.find(role => role.id === "NURSE");
+  const nurses = composer.staff.filter(staff => staff.roleId === "NURSE");
+  assert.ok(nurseRole);
+  assert.ok(nurses.length > 0);
+  assert.ok(nurses.every(staff => staff.role === nurseRole.label));
+});
+
+test("the demo inbox includes every alert audience pattern", () => {
+  const hospital = new Hospital();
+  const activeStaffIds = new Set(
+    hospital.db.users
+      .filter(user => user.status === "ACTIVE")
+      .map(user => user.staffId)
+  );
+  const activeStaff = hospital.db.staff.filter(
+    staff => staff.status !== "INACTIVE" && activeStaffIds.has(staff.id)
+  );
+  const alert = (subject: string) =>
+    hospital.db.alerts.find(row => row.subject === subject)!;
+
+  const hospitalWide = alert("Hospital safety drill at 4 PM");
+  assert.deepEqual(
+    new Set(hospitalWide.recipientIds),
+    new Set(
+      activeStaff
+        .filter(staff => staff.id !== hospitalWide.senderId)
+        .map(staff => staff.id)
+    )
+  );
+
+  const nurses = alert("Review isolation-bed readiness");
+  assert.deepEqual(
+    new Set(nurses.recipientIds),
+    new Set(
+      activeStaff.filter(staff => staff.role === "NURSE").map(staff => staff.id)
+    )
+  );
+
+  const laboratory = alert("Chemistry analyser maintenance window");
+  const laboratoryDepartment = hospital.db.staff.find(
+    staff => staff.id === laboratory.recipientIds[0]
+  )!.departmentId;
+  assert.deepEqual(
+    new Set(laboratory.recipientIds),
+    new Set(
+      activeStaff
+        .filter(staff => staff.departmentId === laboratoryDepartment)
+        .map(staff => staff.id)
+    )
+  );
+
+  const individual = alert("Confirm evening isolation-room handover");
+  assert.equal(individual.recipientIds.length, 1);
+  assert.equal(
+    hospital.db.staff.find(staff => staff.id === individual.recipientIds[0])!
+      .role,
+    "NURSE"
+  );
 });
 
 test("billing invoices can be filtered by charge category", () => {

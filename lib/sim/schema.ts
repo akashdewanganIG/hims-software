@@ -1,5 +1,5 @@
 /**
- * HIMS simulation — relational schema.
+ * HIMS demo — relational schema.
  *
  * Every table is a flat array of rows keyed by a string `id`. Rows reference
  * each other by id only (never by copied names), so a patient, a staff member
@@ -1159,7 +1159,7 @@ export interface StaffAlert {
 export interface Database {
   meta: {
     schemaVersion: number;
-    /** When the seed simulation ran (after any day re-anchoring). */
+    /** When the demo seed ran (after any day re-anchoring). */
     anchoredAt: ISODateTime;
     counters: Record<string, number>;
   };

@@ -31,7 +31,7 @@ import { cn } from "@/lib/utils";
  * data lives, the cross-module integrity check on demand and (for
  * administrators) a reset of the hospital.
  */
-export function SimulationMenu() {
+export function SystemMenu() {
   const queryClient = useQueryClient();
   const { can, user } = useSession();
   const [issues, setIssues] = React.useState<IntegrityIssue[] | null>(null);
@@ -77,7 +77,7 @@ export function SimulationMenu() {
           <button
             type="button"
             className="relative inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-muted-foreground outline-none transition-[background-color,border-color,color] duration-150 hover:border-border-strong hover:bg-surface-subtle hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30"
-            aria-label="Simulation status"
+            aria-label="System status"
           >
             <Activity aria-hidden="true" className="size-4" />
             <span
@@ -96,7 +96,7 @@ export function SimulationMenu() {
         >
           <div className="flex items-center justify-between gap-3 px-2 py-1.5">
             <p className="text-[0.8125rem] font-semibold leading-5 text-foreground">
-              Simulation
+              System status
             </p>
             <span className="text-[0.6875rem] font-medium text-success-foreground">
               {server ? "PostgreSQL · shared" : "Running locally"}
@@ -167,7 +167,7 @@ export function SimulationMenu() {
                 className="flex min-h-9 w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[0.8125rem] font-medium text-error-foreground outline-none transition-colors hover:bg-error-surface focus-visible:ring-2 focus-visible:ring-ring/25"
               >
                 <RotateCcw className="size-4" />
-                Reset simulation
+                Reset hospital data
               </button>
             </div>
           ) : null}
@@ -178,13 +178,13 @@ export function SimulationMenu() {
         open={confirmReset}
         onOpenChange={setConfirmReset}
         variant="destructive"
-        title="Reset the simulation?"
+        title="Reset hospital data?"
         description={
           server
             ? "Every change made by every user is discarded and a fresh 30-day hospital history is written to the database. This takes a few seconds."
             : "Every change made in this browser is discarded and a fresh 30-day hospital history is replayed up to now. This takes a few seconds."
         }
-        confirmText="Reset simulation"
+        confirmText="Reset hospital data"
         onConfirm={async () => {
           try {
             await resetData();
@@ -194,7 +194,7 @@ export function SimulationMenu() {
           }
           setIssues(null);
           await queryClient.invalidateQueries({ queryKey: [ROOT_KEY] });
-          toast.success("Simulation reset", {
+          toast.success("Hospital data reset", {
             description: "A fresh hospital history has been generated.",
           });
         }}

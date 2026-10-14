@@ -158,7 +158,7 @@ await step("patient record shows results", async () => {
 });
 
 await step("integrity check", async () => {
-  await page.getByRole("button", { name: "Simulation status" }).click();
+  await page.getByRole("button", { name: "System status" }).click();
   await page.getByRole("button", { name: "Run check" }).click();
   await page
     .getByText(/All cross-module rules hold/)

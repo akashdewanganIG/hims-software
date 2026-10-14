@@ -1,5 +1,5 @@
 /**
- * Replays the seed simulation off the main thread so the boot screen stays
+ * Replays the demo seed off the main thread so the boot screen stays
  * responsive during the first-visit generation.
  */
 import { generateDatabase } from "./seed";

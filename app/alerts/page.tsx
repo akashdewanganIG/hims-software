@@ -47,7 +47,8 @@ const PRIORITY_TONE: Record<string, TagTone> = {
 };
 
 const EMPTY_COMPOSER = {
-  audience: "ALL" as "ALL" | "DEPARTMENT" | "ROLE" | "STAFF",
+  audience: "ALL" as "ALL" | "DEPARTMENT" | "ROLE" | "ROLE_STAFF",
+  roleId: "",
   audienceId: "",
   category: "General",
   customCategory: "",
@@ -85,7 +86,7 @@ export default function AlertsPage() {
   const send = useAction(
     "alerts.send",
     () => ({
-      audience: form.audience,
+      audience: form.audience === "ROLE_STAFF" ? "STAFF" : form.audience,
       audienceId: form.audience === "ALL" ? undefined : form.audienceId,
       category:
         form.category === "__custom" ? form.customCategory : form.category,
@@ -186,16 +187,19 @@ export default function AlertsPage() {
       ? composer?.departments
       : form.audience === "ROLE"
         ? composer?.roles
-        : form.audience === "STAFF"
-          ? composer?.staff
-          : [];
+        : [];
+  const roleStaff =
+    composer?.staff.filter(staff => staff.roleId === form.roleId) ?? [];
   const finalCategory =
     form.category === "__custom" ? form.customCategory.trim() : form.category;
   const formValid =
     finalCategory.length >= 2 &&
     form.subject.trim().length >= 3 &&
     form.message.trim().length >= 5 &&
-    (form.audience === "ALL" || Boolean(form.audienceId));
+    (form.audience === "ALL" ||
+      (form.audience === "ROLE_STAFF"
+        ? Boolean(form.roleId && form.audienceId)
+        : Boolean(form.audienceId)));
 
   return (
     <PageShell>
@@ -339,25 +343,20 @@ export default function AlertsPage() {
               setForm(current => ({
                 ...current,
                 audience: event.target.value as typeof current.audience,
+                roleId: "",
                 audienceId: "",
               }))
             }
           >
             <option value="ALL">All active staff</option>
             <option value="DEPARTMENT">A department</option>
-            <option value="ROLE">A staff role</option>
-            <option value="STAFF">One staff member</option>
+            <option value="ROLE">Everyone in a staff role</option>
+            <option value="ROLE_STAFF">One person in a staff role</option>
           </SelectField>
         </Field>
-        {form.audience !== "ALL" ? (
+        {form.audience === "DEPARTMENT" || form.audience === "ROLE" ? (
           <Field
-            label={
-              form.audience === "DEPARTMENT"
-                ? "Department"
-                : form.audience === "ROLE"
-                  ? "Staff role"
-                  : "Staff member"
-            }
+            label={form.audience === "DEPARTMENT" ? "Department" : "Staff role"}
             required
           >
             <SelectField
@@ -377,6 +376,49 @@ export default function AlertsPage() {
               ))}
             </SelectField>
           </Field>
+        ) : form.audience === "ROLE_STAFF" ? (
+          <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
+            <Field label="Staff role" required>
+              <SelectField
+                value={form.roleId}
+                onChange={event =>
+                  setForm(current => ({
+                    ...current,
+                    roleId: event.target.value,
+                    audienceId: "",
+                  }))
+                }
+              >
+                <option value="">Choose a role</option>
+                {composer?.roles.map(role => (
+                  <option key={role.id} value={role.id}>
+                    {role.label}
+                  </option>
+                ))}
+              </SelectField>
+            </Field>
+            <Field label="Person in this role" required>
+              <SelectField
+                value={form.audienceId}
+                disabled={!form.roleId}
+                onChange={event =>
+                  setForm(current => ({
+                    ...current,
+                    audienceId: event.target.value,
+                  }))
+                }
+              >
+                <option value="">
+                  {form.roleId ? "Choose a person" : "Choose a role first"}
+                </option>
+                {roleStaff.map(staff => (
+                  <option key={staff.id} value={staff.id}>
+                    {staff.label}
+                  </option>
+                ))}
+              </SelectField>
+            </Field>
+          </div>
         ) : (
           <div className="hidden sm:block" />
         )}

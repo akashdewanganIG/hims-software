@@ -117,7 +117,7 @@ export default function VisitPage() {
         <ErrorBanner error={error} />
         <EmptyState
           title="Visit not found"
-          description="It may belong to a reset simulation."
+          description="It may belong to hospital data that was reset."
           action={
             <Button asChild variant="outline">
               <Link href="/opd">Back to the OPD queue</Link>

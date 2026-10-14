@@ -1,4 +1,4 @@
-/** Small seeded PRNG (mulberry32) so every fresh simulation is reproducible. */
+/** Small seeded PRNG (mulberry32) so every fresh demo dataset is reproducible. */
 export class Rng {
   private state: number;
 

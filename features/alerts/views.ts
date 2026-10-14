@@ -93,6 +93,7 @@ export function alertComposerView(db: Database, actor: Actor) {
     .map(row => ({
       id: row.id,
       label: staffName(row),
+      roleId: row.role,
       role: STAFF_ROLE_LABEL[row.role],
     }))
     .sort((a, b) => a.label.localeCompare(b.label));

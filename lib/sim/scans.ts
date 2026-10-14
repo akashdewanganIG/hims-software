@@ -70,7 +70,6 @@ export function consentFormScan(input: {
       "Signature of patient / attendant: ______________________________",
       "Relationship (if attendant): __________    Witness (staff): __________",
     ],
-    footer:
-      "Scanned copy - HIMS Simulation, fictional data. Not a legal document.",
+    footer: "Scanned copy - HIMS, fictional demo data. Not a legal document.",
   });
 }
