@@ -614,7 +614,7 @@ function metricsFor(
   if (opens("ipd"))
     all.push({
       module: "ipd",
-      label: "Inpatients",
+      label: "IPD in-house",
       value: String(ops.ipd.inHouse),
       hint: `${ops.ipd.admittedToday} admitted · ${ops.ipd.dischargePending} awaiting discharge`,
       href: "/ipd",

@@ -81,7 +81,7 @@ export default function OperationsPage() {
           href="/opd"
         />
         <StatCard
-          label="Inpatients"
+          label="IPD in-house"
           value={data?.ipd.inHouse ?? 0}
           icon={HospitalIcon}
           loading={isLoading}
