@@ -17,7 +17,8 @@ export function PageShell({
     <div
       {...props}
       className={cn(
-        "mx-auto w-full max-w-[100rem] min-w-0",
+        // A size container: summary strips lay out by the page's width.
+        "@container/page mx-auto w-full max-w-[100rem] min-w-0",
         "px-4 pb-8 pt-5 sm:px-5",
         "flex flex-col",
         gap === "tight" ? "gap-3" : "gap-4",

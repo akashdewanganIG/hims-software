@@ -276,7 +276,7 @@ export default function InvoicePage() {
             description="Each line comes from its source: appointment, lab test, pharmacy draw, bed stay or a manual charge."
           >
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[44rem] text-sm">
+              <table className="w-full min-w-[36rem] text-sm">
                 <thead>
                   <tr className="border-b border-border bg-surface-subtle text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     <th className="h-10 px-4">Date</th>

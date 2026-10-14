@@ -403,6 +403,36 @@
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
 }
 
+/*
+ * Summary strips of six or four cards (most pages) never leave one card
+ * alone on a row: 6 → two, three or six columns; 4 → two or four.
+ */
+@container page (width < 34rem) {
+  .grid-auto-fit-sm:has(> :nth-child(6):last-child) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@container page (width < 48rem) {
+  .grid-auto-fit-sm:has(> :nth-child(4):last-child) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@container page (34rem <= width < 68rem) {
+  .grid-auto-fit-sm:has(> :nth-child(6):last-child) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@container page (width >= 68rem) {
+  .grid-auto-fit-sm:has(> :nth-child(6):last-child) {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+@container page (width >= 48rem) {
+  .grid-auto-fit-sm:has(> :nth-child(4):last-child) {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
 .app-content {
   min-width: 0;
   overscroll-behavior: contain;

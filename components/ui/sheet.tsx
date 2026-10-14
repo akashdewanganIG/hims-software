@@ -86,7 +86,7 @@ function SheetFooter({
   return (
     <div
       className={cn(
-        "flex shrink-0 flex-col-reverse gap-2 border-t border-border px-4 py-3 sm:flex-row sm:justify-end sm:px-5",
+        "flex shrink-0 flex-col-reverse gap-2 border-t border-border px-4 py-3 sm:flex-row sm:flex-wrap sm:justify-end sm:px-5",
         className
       )}
       {...props}

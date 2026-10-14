@@ -378,7 +378,7 @@ export function PhotoDialog({
                 Remove photo
               </Button>
             ) : null}
-            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap">
               <Button
                 type="button"
                 variant="outline"

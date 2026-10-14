@@ -555,7 +555,7 @@ function RecordSheet({
                 </div>
               </SheetBody>
               <SheetFooter>
-                <div className="flex flex-col gap-2 sm:mr-auto sm:flex-row">
+                <div className="flex flex-col gap-2 sm:mr-auto sm:flex-row sm:flex-wrap">
                   <DownloadPdfButton
                     fileName={pdfName("Case-file", rec.code)}
                     build={() => caseFilePdf(data)}

@@ -340,7 +340,7 @@ export function DischargePanel({ detail }: { detail: AdmissionDetail }) {
             releases the bed for cleaning, posts the last room charges and
             issues the final bill.
           </p>
-          <div className="flex shrink-0 gap-2">
+          <div className="flex shrink-0 flex-wrap gap-2">
             <Button
               variant="outline"
               onClick={confirmRevert}

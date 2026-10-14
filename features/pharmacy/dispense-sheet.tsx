@@ -284,7 +284,7 @@ export function DispenseSheet({
                       : "Enter quantities to dispense"
                     : "Nothing left to dispense."}
                 </p>
-                <div className="flex flex-col-reverse gap-2 sm:flex-row">
+                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap">
                   {canDispense ? (
                     <Button variant="outline" onClick={() => setClosing(true)}>
                       Close as not collected

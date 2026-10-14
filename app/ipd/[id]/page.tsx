@@ -328,7 +328,7 @@ function TransferBanner({ detail }: { detail: AdmissionDetail }) {
       title={`Transfer pending to ${detail.pendingTransferBed!.ward} · ${detail.pendingTransferBed!.code}`}
       action={
         can("ipd.transfer") ? (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button
               size="sm"
               variant="outline"

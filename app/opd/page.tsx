@@ -42,6 +42,21 @@ import { cn } from "@/lib/utils";
 
 type Tab = "waiting" | "consultation" | "upcoming" | "completed" | "all";
 
+/** Doctor cards wear their load: busy (over 3 waiting), consulting, on duty, off. */
+type DoctorTone = "busy" | "consulting" | "onDuty" | "offShift";
+const DOCTOR_CARD: Record<DoctorTone, string> = {
+  busy: "border-warning-border bg-warning-surface",
+  consulting: "border-info-border bg-info-surface",
+  onDuty: "border-success-border bg-success-surface",
+  offShift: "border-border bg-surface-subtle",
+};
+const DOCTOR_TEXT: Record<DoctorTone, string> = {
+  busy: "text-warning-foreground",
+  consulting: "text-info-foreground",
+  onDuty: "text-success-foreground",
+  offShift: "text-muted-foreground",
+};
+
 const TAB_FILTER: Record<Tab, (row: QueueRow) => boolean> = {
   waiting: r => r.status === "CHECKED_IN",
   consultation: r => r.status === "IN_CONSULTATION",
@@ -115,7 +130,7 @@ export default function OpdQueuePage() {
       id: "reason",
       header: "Reason",
       cell: r => (
-        <div className="min-w-0 max-w-64">
+        <div className="min-w-0 max-w-52">
           <p className="truncate">{r.reason}</p>
           <p className="truncate text-xs text-muted-foreground">
             {humanize(r.type)} · {humanize(r.source)}
@@ -145,25 +160,27 @@ export default function OpdQueuePage() {
         ),
     },
     {
-      id: "vitals",
-      header: "Vitals",
-      align: "center",
-      cell: r =>
-        r.encounterId ? (
-          r.vitalsRecorded ? (
-            <StatusBadge status="DONE" label="Done" tone="active" />
-          ) : (
-            <StatusBadge status="PENDING" label="Due" />
-          )
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        ),
-    },
-    {
       id: "status",
       header: "Status",
       sortValue: r => r.status,
-      cell: r => <StatusBadge status={r.status} />,
+      // Vitals ride along under the status, keeping the queue narrow.
+      cell: r => (
+        <div className="flex flex-col items-start gap-0.5">
+          <StatusBadge status={r.status} />
+          {r.encounterId ? (
+            <span
+              className={cn(
+                "text-[0.6875rem] font-medium",
+                r.vitalsRecorded
+                  ? "text-success-foreground"
+                  : "text-warning-foreground"
+              )}
+            >
+              {r.vitalsRecorded ? "Vitals done" : "Vitals due"}
+            </span>
+          ) : null}
+        </div>
+      ),
     },
     {
       id: "code",
@@ -295,117 +312,132 @@ export default function OpdQueuePage() {
         />
       </section>
 
-      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
-        <Panel
-          flush
-          title="Today's queue"
-          description="Patients are seen in token order. Waits over 30 minutes are highlighted."
-        >
-          <DataTable
-            columns={columns}
-            rows={visible}
-            keyOf={r => r.id}
-            isLoading={isLoading}
-            initialSort={
-              tab === "upcoming" || tab === "all"
-                ? { id: "time", direction: "asc" }
-                : { id: "token", direction: "asc" }
-            }
-            empty={
-              tab === "waiting"
-                ? "No one is waiting right now."
-                : "No patients in this view."
-            }
-            onRowClick={r =>
-              r.encounterId && router.push(`/opd/visits/${r.encounterId}`)
-            }
-            pageSize={15}
-            toolbar={
-              <CategorySwitcher
-                label="Queue view"
-                items={tabs}
-                value={tab}
-                onValueChange={setTab}
-              />
-            }
-          />
-        </Panel>
-
-        <Panel
-          title="Doctors today"
-          description="Live load per doctor. Select one to filter the queue."
-          flush
-        >
-          {isLoading ? (
-            <div className="p-3">
-              <PanelRowsSkeleton rows={6} />
-            </div>
-          ) : (
-            <ul className="divide-y divide-border">
-              {(data?.doctors ?? []).map(d => {
-                const selected = doctorId === d.id;
-                return (
-                  <li key={d.id}>
-                    <button
-                      type="button"
-                      onClick={() => setDoctorId(selected ? "" : d.id)}
+      <Panel
+        title="Doctors today"
+        description="Live load per doctor. Select a card to show only that doctor's patients in the queue."
+        actions={
+          doctorId ? (
+            <Button size="sm" variant="outline" onClick={() => setDoctorId("")}>
+              Show all doctors
+            </Button>
+          ) : null
+        }
+      >
+        {isLoading ? (
+          <PanelRowsSkeleton rows={2} />
+        ) : data?.doctors.length ? (
+          <ul className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(min(100%,13.5rem),1fr))]">
+            {data.doctors.map(d => {
+              const selected = doctorId === d.id;
+              const tone: DoctorTone =
+                d.waiting > 3
+                  ? "busy"
+                  : d.inConsultation
+                    ? "consulting"
+                    : d.onDuty
+                      ? "onDuty"
+                      : "offShift";
+              return (
+                <li key={d.id} className="min-w-0">
+                  <button
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => setDoctorId(selected ? "" : d.id)}
+                    className={cn(
+                      "flex h-full w-full items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left outline-none transition-shadow hover:shadow-sm focus-visible:ring-2 focus-visible:ring-ring/30",
+                      DOCTOR_CARD[tone],
+                      selected &&
+                        "ring-2 ring-primary ring-offset-1 ring-offset-card"
+                    )}
+                  >
+                    <Stethoscope
                       className={cn(
-                        "flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left outline-none transition-colors hover:bg-surface-subtle focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/30",
-                        selected && "bg-primary-surface/60"
+                        "mt-0.5 size-4 shrink-0",
+                        DOCTOR_TEXT[tone]
                       )}
-                    >
-                      <span className="min-w-0">
-                        <span className="flex items-center gap-1.5">
-                          <span
-                            className={cn(
-                              "size-1.5 shrink-0 rounded-full",
-                              d.inConsultation
-                                ? "bg-info"
-                                : d.onDuty
-                                  ? "bg-success"
-                                  : "bg-muted-foreground/50"
-                            )}
-                            aria-hidden="true"
-                          />
-                          <span className="truncate text-[0.8125rem] font-medium">
-                            {d.name}
-                          </span>
-                        </span>
-                        <span className="block truncate text-xs text-muted-foreground">
-                          {d.department} ·{" "}
-                          {d.inConsultation
-                            ? "consulting"
-                            : d.onDuty
-                              ? "on duty"
-                              : "off shift"}
-                        </span>
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[0.8125rem] font-semibold text-foreground">
+                        {d.name}
                       </span>
-                      <span className="shrink-0 text-right">
-                        <span
-                          className={cn(
-                            "block text-sm font-semibold tabular-nums",
-                            d.waiting > 3 && "text-error-foreground"
-                          )}
-                        >
-                          {d.waiting}
-                        </span>
-                        <span className="block text-[0.6875rem] text-muted-foreground tabular-nums">
-                          {d.seen}/{d.booked} seen
-                        </span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {d.department}
                       </span>
-                    </button>
-                  </li>
-                );
-              })}
-              {!data?.doctors.length ? (
-                <li className="px-3 py-6 text-center text-sm text-muted-foreground">
-                  No OPD bookings today.
+                      <span
+                        className={cn(
+                          "mt-1 block text-xs font-medium",
+                          DOCTOR_TEXT[tone]
+                        )}
+                      >
+                        {d.inConsultation
+                          ? "Consulting"
+                          : d.onDuty
+                            ? "On duty"
+                            : "Off shift"}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-right">
+                      <span
+                        className={cn(
+                          "block text-lg font-semibold leading-none tabular-nums",
+                          tone === "busy" && DOCTOR_TEXT.busy
+                        )}
+                      >
+                        {d.waiting}
+                      </span>
+                      <span className="block text-[0.6875rem] text-muted-foreground">
+                        waiting
+                      </span>
+                      <span className="mt-1 block text-[0.6875rem] tabular-nums text-muted-foreground">
+                        {d.seen}/{d.booked} seen
+                      </span>
+                    </span>
+                  </button>
                 </li>
-              ) : null}
-            </ul>
-          )}
-        </Panel>
-      </div>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            No OPD bookings today.
+          </p>
+        )}
+      </Panel>
+
+      <Panel
+        flush
+        title="Today's queue"
+        description="Patients are seen in token order. Waits over 30 minutes are highlighted."
+      >
+        <DataTable
+          columns={columns}
+          rows={visible}
+          keyOf={r => r.id}
+          isLoading={isLoading}
+          initialSort={
+            tab === "upcoming" || tab === "all"
+              ? { id: "time", direction: "asc" }
+              : { id: "token", direction: "asc" }
+          }
+          empty={
+            tab === "waiting"
+              ? "No one is waiting right now."
+              : "No patients in this view."
+          }
+          onRowClick={r =>
+            r.encounterId && router.push(`/opd/visits/${r.encounterId}`)
+          }
+          pageSize={15}
+          toolbar={
+            <CategorySwitcher
+              label="Queue view"
+              items={tabs}
+              value={tab}
+              onValueChange={setTab}
+            />
+          }
+        />
+      </Panel>
 
       <BookAppointmentDialog
         open={bookOpen}

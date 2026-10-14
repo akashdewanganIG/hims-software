@@ -124,7 +124,7 @@ const DialogFooter = ({
   <div
     data-slot="dialog-footer"
     className={cn(
-      "relative z-10 shrink-0 flex flex-col-reverse gap-2 border-t border-border bg-surface px-4 py-3 sm:flex-row sm:justify-end sm:px-5",
+      "relative z-10 shrink-0 flex flex-col-reverse gap-2 border-t border-border bg-surface px-4 py-3 sm:flex-row sm:flex-wrap sm:justify-end sm:px-5",
       className
     )}
     {...props}
