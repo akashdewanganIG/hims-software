@@ -76,6 +76,7 @@ import {
   complaintsView,
   feedbackSummaryView,
   feedbackView,
+  feedbackRequestsView,
   patientEncountersView,
 } from "@/features/quality/views";
 import {
@@ -95,7 +96,17 @@ const id = z.string().trim().min(1).max(80);
 const maybeId = id.nullable();
 const filter = z.string().max(200).optional();
 const date = z.iso.date();
-const days = z.number().int().min(1).max(3650);
+const dateRangeFields = { from: date, to: date };
+const orderedRange = (value: { from: string; to: string }) =>
+  value.from <= value.to;
+const boundedRange = (value: { from: string; to: string }) =>
+  (Date.parse(value.to) - Date.parse(value.from)) / 86_400_000 < 3650;
+const dateRange = z
+  .object(dateRangeFields)
+  .refine(orderedRange, {
+    message: "The end date must be on or after the start date.",
+  })
+  .refine(boundedRange, { message: "Choose a range of 3,650 days or fewer." });
 
 export interface ViewDef<S extends z.ZodType, R> {
   /** Modules any of which lets a role open the view; [] = any signed-in user. */
@@ -143,12 +154,12 @@ export const VIEWS = {
   }),
   "dashboard.trend": view({
     modules: ["dashboard"],
-    params: none,
-    run: (db, now, _p, actor) => dashboardTrendView(db, now, actor),
+    params: dateRange,
+    run: (db, now, range, actor) => dashboardTrendView(db, now, actor, range),
   }),
   "analytics.overview": view({
     modules: ["analytics"],
-    params: z.object({ days }),
+    params: dateRange,
     run: analyticsView,
   }),
   "operations.overview": view({
@@ -305,7 +316,14 @@ export const VIEWS = {
   }),
   "pharmacy.transactions": view({
     modules: ["pharmacy"],
-    params: z.object({ type: filter, q: filter, days }),
+    params: z
+      .object({ type: filter, q: filter, ...dateRangeFields })
+      .refine(orderedRange, {
+        message: "The end date must be on or after the start date.",
+      })
+      .refine(boundedRange, {
+        message: "Choose a range of 3,650 days or fewer.",
+      }),
     run: transactionsView,
   }),
 
@@ -334,13 +352,32 @@ export const VIEWS = {
   /* Administration ------------------------------------------------- */
   "billing.invoices": view({
     modules: ["billing"],
-    params: z.object({
-      view: z.enum(["due", "running", "refund", "paid", "all"]),
-      q: filter,
-      setting: filter,
-      category: filter,
-      days: days.optional(),
-    }),
+    params: z
+      .object({
+        view: z.enum(["due", "running", "refund", "paid", "all"]),
+        q: filter,
+        setting: filter,
+        category: filter,
+        from: date.optional(),
+        to: date.optional(),
+      })
+      .refine(value => Boolean(value.from) === Boolean(value.to), {
+        message: "Choose both a start and end date.",
+      })
+      .refine(
+        value =>
+          !value.from ||
+          !value.to ||
+          orderedRange(value as { from: string; to: string }),
+        { message: "The end date must be on or after the start date." }
+      )
+      .refine(
+        value =>
+          !value.from ||
+          !value.to ||
+          boundedRange(value as { from: string; to: string }),
+        { message: "Choose a range of 3,650 days or fewer." }
+      ),
     run: invoicesView,
   }),
   "billing.summary": view({
@@ -399,18 +436,37 @@ export const VIEWS = {
   }),
   "feedback.list": view({
     modules: ["feedback"],
-    params: z.object({
-      view: z.enum(["all", "followup", "low", "high"]),
-      q: filter,
-      departmentId: filter,
-      days,
-    }),
+    params: z
+      .object({
+        view: z.enum(["all", "followup", "low", "high"]),
+        q: filter,
+        departmentId: filter,
+        ...dateRangeFields,
+      })
+      .refine(orderedRange, {
+        message: "The end date must be on or after the start date.",
+      })
+      .refine(boundedRange, {
+        message: "Choose a range of 3,650 days or fewer.",
+      }),
     run: feedbackView,
   }),
   "feedback.summary": view({
     modules: ["feedback"],
-    params: z.object({ days }),
+    params: dateRange,
     run: feedbackSummaryView,
+  }),
+  "feedback.requests": view({
+    modules: ["feedback"],
+    params: z
+      .object({ status: filter, q: filter, ...dateRangeFields })
+      .refine(orderedRange, {
+        message: "The end date must be on or after the start date.",
+      })
+      .refine(boundedRange, {
+        message: "Choose a range of 3,650 days or fewer.",
+      }),
+    run: feedbackRequestsView,
   }),
   "feedback.patientEncounters": view({
     modules: ["feedback"],

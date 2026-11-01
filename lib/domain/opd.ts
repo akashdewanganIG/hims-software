@@ -26,6 +26,7 @@ import {
 import { postCharge } from "./billing";
 import { createMedicalRecord } from "./mrd";
 import { REGISTRATION_FEE, isFirstVisit } from "./patients";
+import { createOpdFeedbackRequest } from "./quality";
 import { assertDoctorBookable } from "./wfm";
 
 /**
@@ -561,6 +562,7 @@ export function completeVisit(
     action: "closed",
     summary: `OPD visit ${encounter.code} closed (${disposition.replace(/_/g, " ").toLowerCase()})`,
   });
+  createOpdFeedbackRequest(tx, encounter.id);
   return encounter;
 }
 

@@ -32,7 +32,7 @@ export function pdfName(...parts: string[]) {
     .replace(/^-|-$/g, "")}.pdf`;
 }
 
-export async function downloadPdf(fileName: string, doc: TDocumentDefinitions) {
+async function loadPdfMake() {
   const [pdfModule, fontModule] = await Promise.all([
     import("pdfmake/build/pdfmake"),
     import("pdfmake/build/vfs_fonts"),
@@ -45,7 +45,45 @@ export async function downloadPdf(fileName: string, doc: TDocumentDefinitions) {
   pdfMake.addVirtualFileSystem(vfs);
   // Records embed their images as data URLs; nothing is fetched.
   pdfMake.setUrlAccessPolicy(() => false);
+  return pdfMake;
+}
+
+export async function createPdfDataUrl(doc: TDocumentDefinitions) {
+  const pdfMake = await loadPdfMake();
+  return pdfMake.createPdf(doc).getDataUrl();
+}
+
+export async function downloadPdf(fileName: string, doc: TDocumentDefinitions) {
+  const pdfMake = await loadPdfMake();
   await pdfMake.createPdf(doc).download(fileName);
+}
+
+/** Adds a scannable public-view link to the bottom-right of every PDF page. */
+export function withShareQr(doc: TDocumentDefinitions, url: string) {
+  const previous = doc.background;
+  doc.background = (page, pageSize) => {
+    const existing =
+      typeof previous === "function" ? previous(page, pageSize) : previous;
+    return [
+      ...(existing ? [existing] : []),
+      {
+        qr: url,
+        fit: 44,
+        foreground: INK,
+        background: "#ffffff",
+        absolutePosition: { x: pageSize.width - 80, y: pageSize.height - 82 },
+      },
+      {
+        text: "View online",
+        fontSize: 6,
+        color: MUTED,
+        absolutePosition: { x: pageSize.width - 82, y: pageSize.height - 36 },
+        width: 48,
+        alignment: "center",
+      },
+    ] as Content;
+  };
+  return doc;
 }
 
 /**
@@ -165,6 +203,7 @@ export function recordDocument({
             width: "auto",
             fontSize: 7,
             color: MUTED,
+            margin: [0, 0, 54, 0],
           },
         ],
       }),

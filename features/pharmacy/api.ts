@@ -22,7 +22,8 @@ export function useInventory() {
 export function useTransactions(filters: {
   type?: string;
   q?: string;
-  days: number;
+  from: string;
+  to: string;
 }) {
   return useView("pharmacy.transactions", filters);
 }

@@ -27,6 +27,7 @@ import {
 } from "@/components/shared/page";
 import { Button } from "@/components/ui/button";
 import { CardActionButton } from "@/components/ui/card-action-button";
+import { DateFilter, type DateRangeValue } from "@/components/ui/date-filter";
 import { LineChart } from "@/components/ui/line-chart";
 import { MetricCard } from "@/components/ui/metric-card";
 import { NavCard } from "@/components/ui/nav-card";
@@ -38,6 +39,7 @@ import { formatINRCompact } from "@/lib/format";
 import { NAVIGATION } from "@/lib/navigation";
 import type { Module } from "@/lib/rbac";
 import { useSession } from "@/lib/session";
+import { addDaysIso, isoDate } from "@/lib/sim/time";
 import { cn } from "@/lib/utils";
 
 /** A dashboard card in the wrapping "My work" row. */
@@ -64,7 +66,11 @@ const METRIC_ICON: Partial<Record<Module, IconComponent>> = {
 export default function DashboardPage() {
   const { staff, role, canAccess } = useSession();
   const { data, isLoading, error, refetch, isFetching } = useDashboard();
-  const { data: trend } = useDashboardTrend();
+  const [trendRange, setTrendRange] = React.useState<DateRangeValue>(() => {
+    const to = isoDate(new Date());
+    return { from: addDaysIso(to, -6), to };
+  });
+  const { data: trend } = useDashboardTrend(trendRange);
   const hour = new Date().getHours();
   const greeting =
     hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
@@ -252,14 +258,39 @@ export default function DashboardPage() {
           )}
         </Panel>
         {hasTrend && !trend ? (
-          <Panel className={CARD} title="Last 7 days" description="Loading…">
+          <Panel className={CARD} title="Activity trend" description="Loading…">
             <PanelRowsSkeleton rows={4} />
           </Panel>
         ) : series.length ? (
           <Panel
             className={CARD}
             bodyClassName="flex flex-col"
-            title="Last 7 days"
+            title="Activity trend"
+            actions={
+              <DateFilter
+                label="Trend period"
+                value={trendRange}
+                onChange={setTrendRange}
+                max={isoDate(new Date())}
+                presets={[
+                  {
+                    label: "Last 7 days",
+                    value: {
+                      from: addDaysIso(isoDate(new Date()), -6),
+                      to: isoDate(new Date()),
+                    },
+                  },
+                  {
+                    label: "Last 30 days",
+                    value: {
+                      from: addDaysIso(isoDate(new Date()), -29),
+                      to: isoDate(new Date()),
+                    },
+                  },
+                ]}
+                className="max-w-48"
+              />
+            }
             description={
               trend?.revenue
                 ? `${series.map(s => s.label).join(" and ")} per day · ${formatINRCompact(trend.revenue.value)} collected`

@@ -15,7 +15,7 @@ import {
   StatusBadge,
 } from "@/components/shared/page";
 import { Button } from "@/components/ui/button";
-import { CategorySwitcher } from "@/components/ui/category-switcher";
+import { DateFilter, type DateRangeValue } from "@/components/ui/date-filter";
 import { SearchInput } from "@/components/ui/search-input";
 import {
   useAppointments,
@@ -30,28 +30,6 @@ import { useSession } from "@/lib/session";
 import { APPOINTMENT_STATUSES } from "@/lib/sim/schema";
 import { addDays, isoDate } from "@/lib/sim/time";
 
-type Range = "today" | "tomorrow" | "week" | "past";
-
-function rangeFor(range: Range) {
-  const today = new Date();
-  switch (range) {
-    case "today":
-      return { from: isoDate(today), to: isoDate(today) };
-    case "tomorrow":
-      return {
-        from: isoDate(addDays(today, 1)),
-        to: isoDate(addDays(today, 1)),
-      };
-    case "week":
-      return { from: isoDate(today), to: isoDate(addDays(today, 7)) };
-    case "past":
-      return {
-        from: isoDate(addDays(today, -7)),
-        to: isoDate(addDays(today, -1)),
-      };
-  }
-}
-
 export default function AppointmentsPage() {
   return (
     <React.Suspense>
@@ -65,7 +43,10 @@ function Appointments() {
   const params = useSearchParams();
   const { staff, can } = useSession();
   const doctor = staff?.role === "DOCTOR";
-  const [range, setRange] = React.useState<Range>("today");
+  const [range, setRange] = React.useState<DateRangeValue>(() => {
+    const date = isoDate(new Date());
+    return { from: date, to: date };
+  });
   const [doctorId, setDoctorId] = React.useState(
     doctor && staff ? staff.id : ""
   );
@@ -73,13 +54,7 @@ function Appointments() {
   const [q, setQ] = React.useState(params.get("q") ?? "");
   const [bookOpen, setBookOpen] = React.useState(false);
 
-  // A search looks a month either side; otherwise the preset range applies.
-  const effective = q.trim()
-    ? {
-        from: isoDate(addDays(new Date(), -30)),
-        to: isoDate(addDays(new Date(), 30)),
-      }
-    : rangeFor(range);
+  const effective = range;
   const {
     data: rows = [],
     isLoading,
@@ -185,7 +160,7 @@ function Appointments() {
           isLoading={isLoading}
           initialSort={{
             id: "when",
-            direction: range === "past" ? "desc" : "asc",
+            direction: range.to < isoDate(new Date()) ? "desc" : "asc",
           }}
           empty="No appointments match these filters."
           onRowClick={r =>
@@ -193,23 +168,44 @@ function Appointments() {
           }
           toolbar={
             <>
-              <CategorySwitcher
+              <DateFilter
                 label="Date range"
                 value={range}
-                onValueChange={next => {
-                  setRange(next);
-                  setQ("");
-                }}
-                items={[
-                  { value: "today", label: "Today" },
-                  { value: "tomorrow", label: "Tomorrow" },
-                  { value: "week", label: "Next 7 days" },
-                  { value: "past", label: "Past 7 days" },
+                onChange={setRange}
+                presets={[
+                  {
+                    label: "Today",
+                    value: {
+                      from: isoDate(new Date()),
+                      to: isoDate(new Date()),
+                    },
+                  },
+                  {
+                    label: "Tomorrow",
+                    value: {
+                      from: isoDate(addDays(new Date(), 1)),
+                      to: isoDate(addDays(new Date(), 1)),
+                    },
+                  },
+                  {
+                    label: "Next 7 days",
+                    value: {
+                      from: isoDate(new Date()),
+                      to: isoDate(addDays(new Date(), 6)),
+                    },
+                  },
+                  {
+                    label: "Past 7 days",
+                    value: {
+                      from: isoDate(addDays(new Date(), -7)),
+                      to: isoDate(addDays(new Date(), -1)),
+                    },
+                  },
                 ]}
               />
               <SearchInput
                 wrapperClassName="min-w-48 flex-1"
-                placeholder="Search ±30 days: patient, UHID, phone, APT no."
+                placeholder="Search patient, UHID, phone or APT no."
                 value={q}
                 onChange={e => setQ(e.target.value)}
               />

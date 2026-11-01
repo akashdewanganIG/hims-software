@@ -792,13 +792,18 @@ function moduleHints(ops: Snapshot, opens: (m: Module) => boolean) {
  * The "last 7 days" strip — only the series this login's modules cover:
  * OPD visits (OPD), admissions (IPD) and collections (billing, analytics).
  */
-export function dashboardTrendView(db: Database, now: Date, actor: Actor) {
+export function dashboardTrendView(
+  db: Database,
+  now: Date,
+  actor: Actor,
+  range: { from: string; to: string }
+) {
   const opens = (m: Module) => actor.access.modules.has(m);
   const visits = opens("opd");
   const admissions = opens("ipd");
   const money = opens("billing") || opens("analytics");
   if (!visits && !admissions && !money) return null;
-  const analytics = buildAnalytics(db, now, 7);
+  const analytics = buildAnalytics(db, now, range.from, range.to);
   return {
     revenue: money ? analytics.kpis.revenue : null,
     daily: analytics.daily.map(d => ({

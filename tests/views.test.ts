@@ -26,8 +26,8 @@ const PARAMS: Record<ViewName, unknown> = {
   "alerts.summary": {},
   "alerts.composer": {},
   "dashboard.home": {},
-  "dashboard.trend": {},
-  "analytics.overview": { days: 30 },
+  "dashboard.trend": { from: addDaysIso(h.today, -6), to: h.today },
+  "analytics.overview": { from: addDaysIso(h.today, -29), to: h.today },
   "operations.overview": {},
   "enquiry.list": { view: "open" },
   "enquiry.summary": {},
@@ -51,7 +51,7 @@ const PARAMS: Record<ViewName, unknown> = {
   "pharmacy.queue": { view: "open" },
   "pharmacy.prescription": { id: h.db.prescriptions[0]!.id },
   "pharmacy.inventory": {},
-  "pharmacy.transactions": { days: 7 },
+  "pharmacy.transactions": { from: addDaysIso(h.today, -6), to: h.today },
   "catalog.medicines": {},
   "catalog.labTests": {},
   "catalog.departments": {},
@@ -66,8 +66,13 @@ const PARAMS: Record<ViewName, unknown> = {
   "complaints.list": { view: "all" },
   "complaints.summary": {},
   "complaints.detail": { id: h.db.complaints[0]!.id },
-  "feedback.list": { view: "all", days: 30 },
-  "feedback.summary": { days: 30 },
+  "feedback.list": {
+    view: "all",
+    from: addDaysIso(h.today, -29),
+    to: h.today,
+  },
+  "feedback.summary": { from: addDaysIso(h.today, -29), to: h.today },
+  "feedback.requests": { from: addDaysIso(h.today, -29), to: h.today },
   "feedback.patientEncounters": { patientId: anyEncounter.patientId },
   "wfm.staff": {},
   "wfm.profile": { id: h.db.staff[0]!.id },
@@ -116,6 +121,14 @@ function normalise(value: unknown): unknown {
 test("views validate their parameters", () => {
   assert.throws(
     () => read("opd.appointments", { from: "yesterday", to: h.today }),
+    (e: unknown) => e instanceof OperationError && e.code === "INVALID_INPUT"
+  );
+  assert.throws(
+    () =>
+      read("analytics.overview", {
+        from: h.today,
+        to: addDaysIso(h.today, -1),
+      }),
     (e: unknown) => e instanceof OperationError && e.code === "INVALID_INPUT"
   );
   assert.throws(
@@ -394,7 +407,7 @@ test("the demo inbox includes every alert audience pattern", () => {
   );
 });
 
-test("billing invoices can be filtered by charge category", () => {
+test("billing invoices can be filtered by charge category and custom date range", () => {
   const invoice = h.db.invoices.find(row =>
     h.db.invoiceItems.some(item => item.invoiceId === row.id)
   )!;
@@ -407,6 +420,15 @@ test("billing invoices can be filtered by charge category", () => {
   }) as Array<{ id: string; categories: string[] }>;
   assert.ok(rows.some(row => row.id === invoice.id));
   assert.ok(rows.every(row => row.categories.includes(category)));
+
+  const date = isoDate(new Date(invoice.createdAt));
+  const dated = read("billing.invoices", {
+    view: "all",
+    from: date,
+    to: date,
+  }) as Array<{ id: string; createdAt: string }>;
+  assert.ok(dated.some(row => row.id === invoice.id));
+  assert.ok(dated.every(row => isoDate(new Date(row.createdAt)) === date));
 });
 
 test("each login's dashboard carries only its own areas", () => {
@@ -443,7 +465,7 @@ test("each login's dashboard carries only its own areas", () => {
       !board.metrics.some(m => m.module === "billing") || opens.has("billing"),
       `${role} sees no takings`
     );
-    const trend = read("dashboard.trend", {}, user) as {
+    const trend = read("dashboard.trend", PARAMS["dashboard.trend"], user) as {
       revenue: unknown;
     } | null;
     if (!opens.has("billing") && !opens.has("analytics"))

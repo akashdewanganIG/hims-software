@@ -10,7 +10,8 @@ export function useInvoices(filters: {
   q?: string;
   setting?: string;
   category?: string;
-  days?: number;
+  from?: string;
+  to?: string;
 }) {
   return useView("billing.invoices", filters);
 }

@@ -23,6 +23,8 @@ const OWNER_MODULES: Record<FileOwner, readonly Module[]> = {
   DOCUMENT: ["ehr", "mrd", "opd", "ipd"],
   STAFF_PHOTO: ["wfm", "admin"],
   COMPLAINT: ["complaints"],
+  // Public snapshots are served only by their unguessable share URL.
+  PUBLIC_DOCUMENT: [],
 };
 
 export interface FileContent {

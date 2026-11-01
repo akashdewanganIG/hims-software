@@ -109,6 +109,20 @@ export function removeFilesOf(tx: Tx, type: FileOwner, ownerId: ID) {
   return before - tx.db.files.length;
 }
 
+/** Publishes one immutable document snapshot behind an unguessable token. */
+export function publishDocumentShare(tx: Tx, token: string, input: FileInput) {
+  assert(
+    !fileOf(tx.db, "PUBLIC_DOCUMENT", token),
+    "That document share already exists."
+  );
+  return storeFile(
+    tx,
+    { type: "PUBLIC_DOCUMENT", id: token },
+    input,
+    DOCUMENT_TYPES
+  );
+}
+
 /** What lists show of a file — never its content. */
 export interface FileSummary {
   id: ID;

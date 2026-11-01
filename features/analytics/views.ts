@@ -9,6 +9,8 @@ import { departmentName } from "@/lib/api/lookup";
 import type { Database } from "@/lib/sim/schema";
 import {
   addDays,
+  DAY,
+  fromIsoDate,
   hoursBetween,
   isoDate,
   minutesBetween,
@@ -23,15 +25,19 @@ function kpi(current: number, previous: number): Kpi {
   return { value: current, previous };
 }
 /** Everything is aggregated from the operational records — no stored stats. */
-export function buildAnalytics(db: Database, now: Date, days: number) {
-  const today = startOfDay(now);
-  const start = addDays(today, -(days - 1));
+export function buildAnalytics(
+  db: Database,
+  now: Date,
+  from: string,
+  to: string
+) {
+  const start = fromIsoDate(from);
+  const end = addDays(fromIsoDate(to), 1);
+  const days = Math.round((end.getTime() - start.getTime()) / DAY);
   const prevStart = addDays(start, -days);
   const iso = (d: Date) => d.toISOString();
   const inRange = (value: string | undefined, from: Date, to: Date) =>
     Boolean(value && value >= iso(from) && value < iso(to));
-  const end = addDays(today, 1);
-
   const dayList = Array.from({ length: days }, (_, i) => addDays(start, i));
   const label = (d: Date) =>
     d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
@@ -248,6 +254,8 @@ export function buildAnalytics(db: Database, now: Date, days: number) {
     methods.set(p.method, (methods.get(p.method) ?? 0) + p.amount);
 
   return {
+    from,
+    to,
     days,
     comparable,
     historyStart: firstRecord,
@@ -269,7 +277,7 @@ export type Analytics = ReturnType<typeof buildAnalytics>;
 export function analyticsView(
   db: Database,
   now: Date,
-  { days }: { days: number }
+  { from, to }: { from: string; to: string }
 ) {
-  return buildAnalytics(db, now, days);
+  return buildAnalytics(db, now, from, to);
 }

@@ -42,7 +42,11 @@ import {
   updateRoomCapacities,
   updateWard,
 } from "../domain/beds";
-import { DOCUMENT_TYPES, IMAGE_TYPES } from "../domain/files";
+import {
+  DOCUMENT_TYPES,
+  IMAGE_TYPES,
+  publishDocumentShare,
+} from "../domain/files";
 import {
   addFollowUp,
   cancelEnquiry,
@@ -129,7 +133,9 @@ import {
   reopenComplaint,
   resolveComplaint,
   startComplaint,
+  markFeedbackWhatsappOpened,
   submitFeedback,
+  submitRequestedFeedback,
   updateComplaint,
   updateFeedbackFollowUp,
 } from "../domain/quality";
@@ -212,7 +218,6 @@ const documentUpload = upload(
   DOCUMENT_TYPES,
   "a PDF or a JPG, PNG or WebP image"
 );
-
 const patientInput = z.object({
   firstName: line(80),
   lastName: line(80),
@@ -1077,6 +1082,15 @@ export const OPERATIONS = {
     input: z.object({ documentId: id }),
     run: (tx, i) => removeDocument(tx, i.documentId),
   }),
+  "document.share": op({
+    label: "Publish document share",
+    allow: [],
+    input: z.object({ token: z.uuid(), file: documentUpload }),
+    run: (tx, input) => {
+      const file = publishDocumentShare(tx, input.token, input.file);
+      return { token: input.token, fileId: file.id };
+    },
+  }),
 
   /* Complaints & feedback ------------------------------------------ */
   "complaint.log": op({
@@ -1188,6 +1202,24 @@ export const OPERATIONS = {
         encounterId: i.encounterId || undefined,
         doctorId: i.doctorId || undefined,
       }),
+  }),
+  "feedback.openWhatsapp": op({
+    label: "Open feedback request in WhatsApp",
+    allow: ["feedback.submit", "feedback.manage"],
+    input: z.object({ requestId: id }),
+    run: (tx, i) => markFeedbackWhatsappOpened(tx, i.requestId),
+  }),
+  "feedback.submitPublic": op({
+    label: "Submit public patient feedback",
+    allow: [],
+    input: z.object({
+      token: z.uuid(),
+      anonymous: z.boolean(),
+      rating: z.number().int().min(1).max(5),
+      categories: z.array(z.enum(FEEDBACK_CATEGORIES)).max(9),
+      comments: text(4000),
+    }),
+    run: (tx, { token, ...input }) => submitRequestedFeedback(tx, token, input),
   }),
   "feedback.updateFollowUp": op({
     label: "Update feedback follow-up",

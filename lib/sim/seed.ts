@@ -1017,17 +1017,33 @@ export function generateDatabase(
           "BILLING",
         ];
     const anonymous = rng.chance(0.15);
-    const fb = quality.submitFeedback(tx(at, pickStaff(receptionists, at).id), {
-      patientId,
+    const actor = tx(at, pickStaff(receptionists, at).id);
+    const input = {
       anonymous,
-      encounterId,
-      departmentId: deptId,
-      doctorId,
       rating,
       categories: rng.sample(pool, rng.int(1, 3)),
       comments: rng.pick(FEEDBACK_TEXT[rating]!),
-      channel: rng.pick(["KIOSK", "SMS_LINK", "IN_PERSON", "EMAIL"] as const),
-    });
+    };
+    const request = db.feedbackRequests.find(
+      row =>
+        row.encounterId === encounterId &&
+        row.process === (inpatient ? "IPD_DISCHARGE" : "OPD_VISIT")
+    );
+    const fb = request
+      ? quality.submitRequestedFeedback(actor, request.token, input)
+      : quality.submitFeedback(actor, {
+          patientId,
+          encounterId,
+          departmentId: deptId,
+          doctorId,
+          ...input,
+          channel: rng.pick([
+            "KIOSK",
+            "SMS_LINK",
+            "IN_PERSON",
+            "EMAIL",
+          ] as const),
+        });
     if (fb.followUpRequired) {
       schedule(addDays(at, 1), "feedback follow-up", t =>
         quality.updateFeedbackFollowUp(tx(t, opsManagers[1]!.id), fb.id, {

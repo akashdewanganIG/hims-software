@@ -366,6 +366,7 @@ export const FILE_OWNERS = [
   "STAFF_PHOTO",
   "DOCUMENT",
   "COMPLAINT",
+  "PUBLIC_DOCUMENT",
 ] as const;
 export type FileOwner = (typeof FILE_OWNERS)[number];
 
@@ -419,8 +420,23 @@ export const FEEDBACK_CHANNELS = [
   "SMS_LINK",
   "IN_PERSON",
   "EMAIL",
+  "WHATSAPP_LINK",
 ] as const;
 export type FeedbackChannel = (typeof FEEDBACK_CHANNELS)[number];
+
+export const FEEDBACK_REQUEST_PROCESSES = [
+  "OPD_VISIT",
+  "IPD_DISCHARGE",
+] as const;
+export type FeedbackRequestProcess =
+  (typeof FEEDBACK_REQUEST_PROCESSES)[number];
+
+export const FEEDBACK_REQUEST_STATUSES = [
+  "READY",
+  "WHATSAPP_OPENED",
+  "SUBMITTED",
+] as const;
+export type FeedbackRequestStatus = (typeof FEEDBACK_REQUEST_STATUSES)[number];
 
 export const FOLLOW_UP_STATUSES = [
   "NOT_REQUIRED",
@@ -1085,6 +1101,28 @@ export interface Feedback extends Timestamps {
   followUpById?: ID;
 }
 
+/** One patient-facing review link created when a care process completes. */
+export interface FeedbackRequest extends Timestamps {
+  id: ID;
+  /** Unguessable token used by the public review page. */
+  token: string;
+  process: FeedbackRequestProcess;
+  /** Encounter for OPD, admission for IPD. Unique within its process. */
+  sourceId: ID;
+  patientId: ID;
+  encounterId: ID;
+  admissionId?: ID;
+  departmentId: ID;
+  doctorId?: ID;
+  phone: string;
+  completedAt: ISODateTime;
+  status: FeedbackRequestStatus;
+  whatsappOpenedAt?: ISODateTime;
+  submittedAt?: ISODateTime;
+  feedbackId?: ID;
+  createdById: ID;
+}
+
 /* ------------------------------------------------------------------ */
 /* Workforce                                                           */
 /* ------------------------------------------------------------------ */
@@ -1256,6 +1294,7 @@ export interface Database {
   complaints: Complaint[];
   complaintNotes: ComplaintNote[];
   feedback: Feedback[];
+  feedbackRequests: FeedbackRequest[];
   shifts: Shift[];
   roster: RosterAssignment[];
   attendance: AttendanceRecord[];
@@ -1306,6 +1345,7 @@ export function emptyDatabase(now: ISODateTime): Database {
     complaints: [],
     complaintNotes: [],
     feedback: [],
+    feedbackRequests: [],
     shifts: [],
     roster: [],
     attendance: [],

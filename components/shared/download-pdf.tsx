@@ -5,8 +5,10 @@ import type { TDocumentDefinitions } from "pdfmake/interfaces";
 
 import { Download } from "@/components/icons";
 import { Button } from "@/components/ui/button";
-import { downloadPdf } from "@/lib/pdf/layout";
+import { buildSharedPdf } from "@/lib/pdf/share";
+import { useSession } from "@/lib/session";
 import { toast } from "@/lib/toast";
+import { downloadDataUrl } from "@/lib/uploads";
 
 /** Builds a record's PDF on demand and saves it to the device. */
 export function DownloadPdfButton({
@@ -15,14 +17,17 @@ export function DownloadPdfButton({
   label = "Download PDF",
   variant = "outline",
   disabled,
+  onShared,
 }: {
   fileName: string;
   build: () => TDocumentDefinitions | Promise<TDocumentDefinitions>;
   label?: string;
   variant?: "outline" | "default";
   disabled?: boolean;
+  onShared?: (publicUrl: string) => void;
 }) {
   const [busy, setBusy] = React.useState(false);
+  const { user } = useSession();
   return (
     <Button
       type="button"
@@ -31,7 +36,10 @@ export function DownloadPdfButton({
       onClick={async () => {
         setBusy(true);
         try {
-          await downloadPdf(fileName, await build());
+          if (!user) throw new Error("Sign in to download this document.");
+          const result = await buildSharedPdf(user.id, fileName, build);
+          downloadDataUrl(fileName, result.data);
+          if (result.publicUrl) onShared?.(result.publicUrl);
         } catch (error) {
           toast.error(error, "Could not create the PDF");
         } finally {

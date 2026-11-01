@@ -25,13 +25,23 @@ export function useFeedback(filters: {
   view: "all" | "followup" | "low" | "high";
   q?: string;
   departmentId?: string;
-  days: number;
+  from: string;
+  to: string;
 }) {
   return useView("feedback.list", filters);
 }
 
-export function useFeedbackSummary(days: number) {
-  return useView("feedback.summary", { days });
+export function useFeedbackSummary(range: { from: string; to: string }) {
+  return useView("feedback.summary", range);
+}
+
+export function useFeedbackRequests(filters: {
+  status?: string;
+  q?: string;
+  from: string;
+  to: string;
+}) {
+  return useView("feedback.requests", filters);
 }
 
 export function usePatientEncounters(patientId?: ID) {

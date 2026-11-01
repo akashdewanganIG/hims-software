@@ -25,6 +25,7 @@ import {
   StatusBadge,
 } from "@/components/shared/page";
 import { Button } from "@/components/ui/button";
+import { DateFilter } from "@/components/ui/date-filter";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { Input } from "@/components/ui/input";
 import { SearchInput } from "@/components/ui/search-input";
@@ -263,13 +264,13 @@ function AttendanceContent() {
                 >
                   <ChevronLeft className="size-4" />
                 </Button>
-                <Input
-                  type="date"
-                  value={date}
+                <DateFilter
+                  single
+                  label="Attendance date"
+                  value={{ from: date, to: date }}
                   max={today}
-                  onChange={event => setDate(event.target.value)}
-                  className="w-40"
-                  aria-label="Attendance date"
+                  onChange={value => setDate(value.from)}
+                  className="w-44"
                 />
                 <Button
                   size="icon"

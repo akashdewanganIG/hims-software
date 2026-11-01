@@ -2,7 +2,15 @@
 
 import * as React from "react";
 
-import { Plus, Smiley, SmileySad, Star } from "@/components/icons";
+import {
+  Copy,
+  Eye,
+  Phone,
+  Plus,
+  Smiley,
+  SmileySad,
+  Star,
+} from "@/components/icons";
 import { DataTable, type Column } from "@/components/shared/data-table";
 import { PatientPicker } from "@/components/shared/patient-picker";
 import {
@@ -19,6 +27,7 @@ import {
 } from "@/components/shared/page";
 import { Button } from "@/components/ui/button";
 import { CategorySwitcher } from "@/components/ui/category-switcher";
+import { DateFilter, type DateRangeValue } from "@/components/ui/date-filter";
 import { MagnitudeBars } from "@/components/ui/chart-primitives";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { SearchInput } from "@/components/ui/search-input";
@@ -40,8 +49,10 @@ import {
 } from "@/features/opd/api";
 import {
   useFeedback,
+  useFeedbackRequests,
   useFeedbackSummary,
   usePatientEncounters,
+  type FeedbackRequestRow,
   type FeedbackRow,
 } from "@/features/quality/api";
 import { Stars } from "@/features/quality/stars";
@@ -49,10 +60,13 @@ import { useAction } from "@/lib/api/client";
 import {
   formatDateShort,
   formatDateTime,
+  formatPhone,
   humanize,
   pluralize,
 } from "@/lib/format";
 import { useSession } from "@/lib/session";
+import { HOSPITAL } from "@/lib/sim/reference";
+import { addDaysIso, isoDate } from "@/lib/sim/time";
 import {
   FEEDBACK_CATEGORIES,
   FEEDBACK_CHANNELS,
@@ -61,14 +75,21 @@ import {
   type FollowUpStatus,
 } from "@/lib/sim/schema";
 import { cn } from "@/lib/utils";
+import { toast } from "@/lib/toast";
 
 type View = "all" | "followup" | "low" | "high";
 
 export default function FeedbackPage() {
   const { can } = useSession();
   const [view, setView] = React.useState<View>("all");
-  const [days, setDays] = React.useState(30);
+  const [range, setRange] = React.useState<DateRangeValue>(() => {
+    const to = isoDate(new Date());
+    return { from: addDaysIso(to, -29), to };
+  });
   const [q, setQ] = React.useState("");
+  const [requestQ, setRequestQ] = React.useState("");
+  const [requestStatus, setRequestStatus] = React.useState("");
+  const [origin, setOrigin] = React.useState("");
   const [departmentId, setDepartmentId] = React.useState("");
   const [openId, setOpenId] = React.useState<string | null>(null);
   const [createOpen, setCreateOpen] = React.useState(false);
@@ -78,13 +99,27 @@ export default function FeedbackPage() {
     error,
   } = useFeedback({
     view,
-    days,
+    ...range,
     q: q || undefined,
     departmentId: departmentId || undefined,
   });
-  const { data: summary } = useFeedbackSummary(days);
+  const { data: summary } = useFeedbackSummary(range);
+  const { data: requests = [], isLoading: requestsLoading } =
+    useFeedbackRequests({
+      ...range,
+      q: requestQ || undefined,
+      status: requestStatus || undefined,
+    });
   const { data: departments = [] } = useDepartments();
   const selected = rows.find(r => r.id === openId) ?? null;
+
+  React.useEffect(() => setOrigin(window.location.origin), []);
+
+  const markWhatsappOpened = useAction(
+    "feedback.openWhatsapp",
+    (requestId: string) => ({ requestId }),
+    { success: "WhatsApp composer opened" }
+  );
 
   const columns: Column<FeedbackRow>[] = [
     {
@@ -161,6 +196,115 @@ export default function FeedbackPage() {
     },
   ];
 
+  const requestColumns: Column<FeedbackRequestRow>[] = [
+    {
+      id: "created",
+      header: "Prepared",
+      sortValue: row => row.createdAt,
+      cell: row => formatDateShort(row.createdAt),
+    },
+    {
+      id: "process",
+      header: "After",
+      sortValue: row => row.processLabel,
+      cell: row => (
+        <div>
+          <p>{row.processLabel}</p>
+          <p className="font-mono text-xs text-muted-foreground">
+            {row.sourceCode}
+          </p>
+        </div>
+      ),
+    },
+    {
+      id: "patient",
+      header: "Patient",
+      sortValue: row => row.patient.name,
+      cell: row => (
+        <div>
+          <p>{row.patient.name}</p>
+          <p className="text-xs text-muted-foreground">
+            {formatPhone(row.phone)}
+          </p>
+        </div>
+      ),
+    },
+    {
+      id: "status",
+      header: "Delivery",
+      sortValue: row => row.status,
+      cell: row => (
+        <StatusBadge
+          status={row.status}
+          label={
+            row.status === "READY"
+              ? "Ready to send"
+              : row.status === "WHATSAPP_OPENED"
+                ? "WhatsApp opened"
+                : "Response received"
+          }
+        />
+      ),
+    },
+    {
+      id: "link",
+      header: "Customer link",
+      cell: row => {
+        const reviewUrl = `${origin}/review/${row.token}`;
+        const message = `Hello ${row.patient.name.split(" ")[0]}, thank you for choosing ${HOSPITAL.name}. Please share feedback about your ${row.processLabel.toLowerCase()}: ${reviewUrl}`;
+        const digits = row.phone.replace(/\D/g, "");
+        const whatsappPhone = digits.length === 10 ? `91${digits}` : digits;
+        return (
+          <div
+            className="flex flex-wrap gap-1.5"
+            onClick={event => event.stopPropagation()}
+          >
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!origin}
+              onClick={() => {
+                void navigator.clipboard.writeText(reviewUrl);
+                toast.success("Feedback link copied");
+              }}
+            >
+              <Copy className="size-3.5" />
+              Copy link
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!origin}
+              onClick={() =>
+                window.open(reviewUrl, "_blank", "noopener,noreferrer")
+              }
+            >
+              <Eye className="size-3.5" />
+              Test form
+            </Button>
+            {row.status !== "SUBMITTED" ? (
+              <Button
+                size="sm"
+                disabled={!origin || !whatsappPhone}
+                onClick={() => {
+                  window.open(
+                    `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(message)}`,
+                    "_blank",
+                    "noopener,noreferrer"
+                  );
+                  markWhatsappOpened.mutate(row.id);
+                }}
+              >
+                <Phone className="size-3.5" />
+                Open WhatsApp
+              </Button>
+            ) : null}
+          </div>
+        );
+      },
+    },
+  ];
+
   return (
     <PageShell>
       <PageHeader
@@ -168,13 +312,26 @@ export default function FeedbackPage() {
         subtitle="Ratings and comments from OPD and inpatients. Ratings of 2 stars or less always get a follow-up."
         actions={
           <>
-            <CategorySwitcher
+            <DateFilter
               label="Period"
-              value={String(days)}
-              onValueChange={v => setDays(Number(v))}
-              items={[
-                { value: "7", label: "7 days" },
-                { value: "30", label: "30 days" },
+              value={range}
+              onChange={setRange}
+              max={isoDate(new Date())}
+              presets={[
+                {
+                  label: "Last 7 days",
+                  value: {
+                    from: addDaysIso(isoDate(new Date()), -6),
+                    to: isoDate(new Date()),
+                  },
+                },
+                {
+                  label: "Last 30 days",
+                  value: {
+                    from: addDaysIso(isoDate(new Date()), -29),
+                    to: isoDate(new Date()),
+                  },
+                },
               ]}
             />
             {can("feedback.submit") ? (
@@ -253,6 +410,42 @@ export default function FeedbackPage() {
           />
         </Panel>
       </div>
+      <Panel
+        title="WhatsApp feedback requests"
+        description="A request is prepared automatically after every completed OPD visit and final IPD discharge. Automatic WhatsApp delivery is not connected yet; copy the customer link, test the form, or open a prefilled WhatsApp message."
+        flush
+      >
+        <DataTable
+          columns={requestColumns}
+          rows={requests}
+          keyOf={row => row.id}
+          isLoading={requestsLoading}
+          initialSort={{ id: "created", direction: "desc" }}
+          pageSize={8}
+          empty="No feedback requests in this period."
+          toolbar={
+            <>
+              <CategorySwitcher
+                label="Request status"
+                value={requestStatus}
+                onValueChange={setRequestStatus}
+                items={[
+                  { value: "", label: "All requests" },
+                  { value: "READY", label: "Ready" },
+                  { value: "WHATSAPP_OPENED", label: "WhatsApp opened" },
+                  { value: "SUBMITTED", label: "Responded" },
+                ]}
+              />
+              <SearchInput
+                wrapperClassName="min-w-48 flex-1"
+                placeholder="Patient, UHID, phone or visit"
+                value={requestQ}
+                onChange={event => setRequestQ(event.target.value)}
+              />
+            </>
+          }
+        />
+      </Panel>
       <Panel flush>
         <DataTable
           columns={columns}

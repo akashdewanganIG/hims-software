@@ -3,6 +3,6 @@ import { useView } from "@/lib/api/client";
 
 export * from "./views";
 
-export function useAnalytics(days: number) {
-  return useView("analytics.overview", { days });
+export function useAnalytics(range: { from: string; to: string }) {
+  return useView("analytics.overview", range);
 }

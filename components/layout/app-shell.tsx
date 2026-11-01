@@ -100,13 +100,32 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   } = useSession();
   const [mobileSidebarOpen, setMobileSidebarOpen] = React.useState(false);
   const isLogin = pathname === "/login";
+  const isPublicDocument = pathname.startsWith("/shared-documents/");
+  const isPublicFeedback = pathname.startsWith("/review/");
 
   React.useEffect(() => setMobileSidebarOpen(false), [pathname]);
 
   React.useEffect(() => {
-    if (!dbReady || !sessionReady || sessionError || isLogin) return;
+    if (
+      !dbReady ||
+      !sessionReady ||
+      sessionError ||
+      isLogin ||
+      isPublicDocument ||
+      isPublicFeedback
+    )
+      return;
     if (!staff) router.replace("/login");
-  }, [dbReady, sessionReady, sessionError, staff, isLogin, router]);
+  }, [
+    dbReady,
+    sessionReady,
+    sessionError,
+    staff,
+    isLogin,
+    isPublicDocument,
+    isPublicFeedback,
+    router,
+  ]);
 
   if (failed)
     return (
@@ -141,6 +160,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
   if (isLogin)
+    return <div className="h-svh w-full overflow-y-auto">{children}</div>;
+  if (isPublicDocument || isPublicFeedback)
     return <div className="h-svh w-full overflow-y-auto">{children}</div>;
   if (!staff)
     return (

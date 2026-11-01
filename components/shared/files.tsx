@@ -4,12 +4,14 @@ import * as React from "react";
 
 import {
   Camera,
+  Copy,
   Download,
   FilePdf,
   ImageSquare,
   Trash2,
   Upload,
 } from "@/components/icons";
+import { DocumentQr } from "@/components/shared/document-qr";
 import { Button } from "@/components/ui/button";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import {
@@ -24,6 +26,9 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useStoredFile } from "@/lib/api/client";
 import { initials } from "@/lib/format";
+import { buildSharedFile } from "@/lib/pdf/share";
+import { useSession } from "@/lib/session";
+import { toast } from "@/lib/toast";
 import {
   DOCUMENT_ACCEPT,
   MAX_UPLOAD_MB,
@@ -225,17 +230,37 @@ export function FilePreviewDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { data, isLoading, error } = useStoredFile(file?.id);
+  const { user } = useSession();
   const [pdfUrl, setPdfUrl] = React.useState<string | null>(null);
+  const [publicUrl, setPublicUrl] = React.useState<string>();
+  const [sharedData, setSharedData] = React.useState<string>();
+  const [sharing, setSharing] = React.useState(false);
 
   React.useEffect(() => {
-    if (!data || data.mimeType !== "application/pdf") return;
-    const url = dataUrlToObjectUrl(data.data);
+    setPublicUrl(undefined);
+    setSharedData(undefined);
+  }, [file?.id]);
+
+  const displayData = sharedData ?? data?.data;
+
+  React.useEffect(() => {
+    if (!data || !displayData || data.mimeType !== "application/pdf") return;
+    const url = dataUrlToObjectUrl(displayData);
     setPdfUrl(url);
     return () => {
       URL.revokeObjectURL(url);
       setPdfUrl(null);
     };
-  }, [data]);
+  }, [data, displayData]);
+
+  const ensureShared = async () => {
+    if (!data || !user) return undefined;
+    if (publicUrl && sharedData) return { publicUrl, data: sharedData };
+    const result = await buildSharedFile(user.id, data.name, data.data);
+    if (result.publicUrl) setPublicUrl(result.publicUrl);
+    setSharedData(result.data);
+    return result;
+  };
 
   return (
     <Dialog open={Boolean(file)} onOpenChange={onOpenChange}>
@@ -258,7 +283,7 @@ export function FilePreviewDialog({
           ) : data.mimeType.startsWith("image/") ? (
             // eslint-disable-next-line @next/next/no-img-element -- stored data URL
             <img
-              src={data.data}
+              src={displayData}
               alt={title ?? data.name}
               className="mx-auto max-h-[65svh] rounded-md border border-border object-contain"
             />
@@ -268,6 +293,18 @@ export function FilePreviewDialog({
               title={title ?? data.name}
               className="h-[65svh] w-full rounded-md border border-border bg-white"
             />
+          ) : null}
+          {publicUrl ? (
+            <div className="mt-4 flex items-center justify-between gap-4 rounded-lg border border-border bg-surface-subtle p-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">Public document link</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  Anyone with this unguessable link can view the snapshot
+                  without signing in.
+                </p>
+              </div>
+              <DocumentQr value={publicUrl} />
+            </div>
           ) : null}
         </DialogBody>
         <DialogFooter>
@@ -280,11 +317,52 @@ export function FilePreviewDialog({
           </Button>
           <Button
             type="button"
-            disabled={!data}
-            onClick={() => data && downloadDataUrl(data.name, data.data)}
+            variant="outline"
+            disabled={!data || sharing}
+            onClick={async () => {
+              if (!data || !user) return;
+              setSharing(true);
+              try {
+                const result = await ensureShared();
+                if (!result?.publicUrl) {
+                  toast.info("Public links require shared database mode.");
+                  return;
+                }
+                await navigator.clipboard.writeText(result.publicUrl);
+                toast.success("Public document link copied");
+              } catch (cause) {
+                toast.error(cause, "Could not create the public link");
+              } finally {
+                setSharing(false);
+              }
+            }}
+          >
+            <Copy className="size-4" />
+            {sharing
+              ? "Creating link…"
+              : publicUrl
+                ? "Copy public link"
+                : "Create public link"}
+          </Button>
+          <Button
+            type="button"
+            disabled={!data || sharing}
+            onClick={async () => {
+              if (!data) return;
+              setSharing(true);
+              try {
+                const result = await ensureShared();
+                if (!result) return;
+                downloadDataUrl(data.name, result.data);
+              } catch (cause) {
+                toast.error(cause, "Could not prepare the document");
+              } finally {
+                setSharing(false);
+              }
+            }}
           >
             <Download className="size-4" />
-            Download
+            {sharing ? "Preparing…" : "Download"}
           </Button>
         </DialogFooter>
       </DialogContent>

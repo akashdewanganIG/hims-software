@@ -9,7 +9,7 @@ import {
   Panel,
   PanelRowsSkeleton,
 } from "@/components/shared/page";
-import { CategorySwitcher } from "@/components/ui/category-switcher";
+import { DateFilter, type DateRangeValue } from "@/components/ui/date-filter";
 import {
   ChartLegend,
   ColumnChart,
@@ -28,8 +28,13 @@ import {
   formatNumber,
   humanize,
 } from "@/lib/format";
+import { addDaysIso, isoDate } from "@/lib/sim/time";
 
-type Range = "7" | "15" | "30";
+const today = () => isoDate(new Date());
+const lastDays = (days: number): DateRangeValue => ({
+  from: addDaysIso(today(), -(days - 1)),
+  to: today(),
+});
 
 /** "▲ 12% vs previous 7 days" — `goodWhenUp` decides the colour. */
 function delta(
@@ -54,9 +59,9 @@ function delta(
 }
 
 export default function AnalyticsPage() {
-  const [range, setRange] = React.useState<Range>("7");
-  const days = Number(range);
-  const { data, isLoading, error } = useAnalytics(days);
+  const [range, setRange] = React.useState<DateRangeValue>(() => lastDays(7));
+  const { data, isLoading, error } = useAnalytics(range);
+  const days = data?.days ?? 1;
   const k = data?.kpis;
   const cmp = data?.comparable ?? false;
   const d = (x: Kpi, goodWhenUp = true) => delta(x, days, goodWhenUp, cmp);
@@ -82,14 +87,15 @@ export default function AnalyticsPage() {
         title="Hospital performance"
         subtitle={`Performance over time, aggregated from the operational records${data && !data.comparable ? ` — simulated history starts ${new Date(data.historyStart).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}, so ${days}-day comparisons are not shown` : ""}. For what needs attention now, use Operations.`}
         actions={
-          <CategorySwitcher
+          <DateFilter
             label="Period"
             value={range}
-            onValueChange={setRange}
-            items={[
-              { value: "7", label: "7 days" },
-              { value: "15", label: "15 days" },
-              { value: "30", label: "30 days" },
+            onChange={setRange}
+            max={today()}
+            presets={[
+              { label: "Last 7 days", value: lastDays(7) },
+              { label: "Last 15 days", value: lastDays(15) },
+              { label: "Last 30 days", value: lastDays(30) },
             ]}
           />
         }

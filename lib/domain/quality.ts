@@ -5,6 +5,7 @@ import type {
   Feedback,
   FeedbackCategory,
   FeedbackChannel,
+  FeedbackRequest,
   FollowUpStatus,
   ID,
   Priority,
@@ -375,6 +376,136 @@ export function submitFeedback(
     action: "submitted",
     summary: `${feedback.rating}★ feedback received${followUpRequired ? " — follow-up needed" : ""}`,
   });
+  return feedback;
+}
+
+function feedbackToken() {
+  const token = globalThis.crypto?.randomUUID?.();
+  assert(token, "A secure feedback link could not be created.");
+  return token;
+}
+
+function requestFor(
+  tx: Tx,
+  input: {
+    process: FeedbackRequest["process"];
+    sourceId: ID;
+    patientId: ID;
+    encounterId: ID;
+    admissionId?: ID;
+    departmentId: ID;
+    doctorId?: ID;
+    completedAt: string;
+  }
+) {
+  const existing = tx.db.feedbackRequests.find(
+    request =>
+      request.process === input.process && request.sourceId === input.sourceId
+  );
+  if (existing) return existing;
+  const patient = must(tx.db.patients, input.patientId, "Patient");
+  const at = nowIso(tx);
+  const request: FeedbackRequest = {
+    id: newId(tx, "fbr"),
+    token: feedbackToken(),
+    ...input,
+    admissionId: input.admissionId || undefined,
+    doctorId: input.doctorId || undefined,
+    phone: patient.phone,
+    status: "READY",
+    createdById: tx.actorId,
+    createdAt: at,
+    updatedAt: at,
+  };
+  tx.db.feedbackRequests.push(request);
+  log(tx, {
+    entityType: "feedback",
+    entityId: request.id,
+    patientId: request.patientId,
+    action: "request_created",
+    summary: `Feedback link prepared after ${request.process === "OPD_VISIT" ? "OPD visit" : "IPD discharge"}`,
+  });
+  return request;
+}
+
+export function createOpdFeedbackRequest(tx: Tx, encounterId: ID) {
+  const encounter = must(tx.db.encounters, encounterId, "Encounter");
+  assert(
+    encounter.type === "OPD" && encounter.status === "CLOSED",
+    "Complete the OPD visit before requesting feedback."
+  );
+  return requestFor(tx, {
+    process: "OPD_VISIT",
+    sourceId: encounter.id,
+    patientId: encounter.patientId,
+    encounterId: encounter.id,
+    departmentId: encounter.departmentId,
+    doctorId: encounter.doctorId,
+    completedAt: encounter.closedAt ?? nowIso(tx),
+  });
+}
+
+export function createIpdFeedbackRequest(tx: Tx, admissionId: ID) {
+  const admission = must(tx.db.admissions, admissionId, "Admission");
+  assert(
+    admission.status === "DISCHARGED",
+    "Discharge the patient before requesting feedback."
+  );
+  return requestFor(tx, {
+    process: "IPD_DISCHARGE",
+    sourceId: admission.id,
+    patientId: admission.patientId,
+    encounterId: admission.encounterId,
+    admissionId: admission.id,
+    departmentId: admission.departmentId,
+    doctorId: admission.doctorId,
+    completedAt: admission.dischargedAt ?? nowIso(tx),
+  });
+}
+
+export function markFeedbackWhatsappOpened(tx: Tx, requestId: ID) {
+  const request = must(tx.db.feedbackRequests, requestId, "Feedback request");
+  assert(
+    request.status !== "SUBMITTED",
+    "This feedback has already been submitted."
+  );
+  request.status = "WHATSAPP_OPENED";
+  request.whatsappOpenedAt = nowIso(tx);
+  touch(tx, request);
+  return request;
+}
+
+export function submitRequestedFeedback(
+  tx: Tx,
+  token: string,
+  input: {
+    anonymous: boolean;
+    rating: number;
+    categories: FeedbackCategory[];
+    comments: string;
+  }
+) {
+  const request = tx.db.feedbackRequests.find(row => row.token === token);
+  assert(request, "This feedback link is not valid.");
+  assert(
+    request.status !== "SUBMITTED",
+    "Feedback has already been submitted."
+  );
+  const feedback = submitFeedback(tx, {
+    patientId: request.patientId,
+    anonymous: input.anonymous,
+    encounterId: request.encounterId,
+    departmentId: request.departmentId,
+    doctorId: request.doctorId,
+    rating: input.rating,
+    categories: input.categories,
+    comments: input.comments,
+    channel: "WHATSAPP_LINK",
+  });
+  request.status = "SUBMITTED";
+  request.submittedAt = feedback.submittedAt;
+  request.feedbackId = feedback.id;
+  touch(tx, request);
   return feedback;
 }
 

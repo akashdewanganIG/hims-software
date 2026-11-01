@@ -20,6 +20,8 @@ import {
   patientRecordPdf,
   prescriptionPdf,
 } from "../lib/pdf/records";
+import { withShareQr } from "../lib/pdf/layout";
+import { stampDocumentWithQr } from "../lib/pdf/share";
 import { prepareView } from "../lib/views/execute";
 import type { ViewName } from "../lib/views/registry";
 import { Hospital } from "./helpers";
@@ -131,4 +133,29 @@ test("a long record breaks across pages and keeps a photo", async () => {
   const pdf = await render(patientRecordPdf(record, PHOTO));
   const pages = (pdf.toString("latin1").match(/\/Type \/Page\b/g) ?? []).length;
   assert.ok(pages >= 2, `expected several pages, got ${pages}`);
+});
+
+test("a public document QR renders in the bottom-right PDF footer", async () => {
+  const bill = h.db.invoices.find(i => i.status === "PAID")!;
+  const doc = withShareQr(
+    invoicePdf(read("billing.invoice", { id: bill.id })),
+    "https://hospital.example/shared-documents/550e8400-e29b-41d4-a716-446655440000"
+  );
+  const pdf = await render(doc);
+  assert.ok(pdf.length > 8_000);
+});
+
+test("an uploaded PDF is stamped with its public QR before download", async () => {
+  const bill = h.db.invoices.find(i => i.status === "PAID")!;
+  const original = await render(
+    invoicePdf(read("billing.invoice", { id: bill.id }))
+  );
+  const stamped = await stampDocumentWithQr(
+    `data:application/pdf;base64,${original.toString("base64")}`,
+    "https://hospital.example/shared-documents/550e8400-e29b-41d4-a716-446655440001"
+  );
+  assert.match(stamped, /^data:application\/pdf;base64,JVBERi0/);
+  const stampedPdf = Buffer.from(stamped.split(",")[1]!, "base64");
+  assert.ok(stampedPdf.length > 8_000);
+  assert.notDeepEqual(stampedPdf, original);
 });

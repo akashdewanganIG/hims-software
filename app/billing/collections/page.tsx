@@ -16,7 +16,7 @@ import {
   StatCard,
 } from "@/components/shared/page";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DateFilter } from "@/components/ui/date-filter";
 import { Tag } from "@/components/ui/tag";
 import { useCollections, type CollectionRow } from "@/features/billing/api";
 import { staffName } from "@/lib/api/lookup";
@@ -120,13 +120,12 @@ export default function CollectionsPage() {
         ]}
         actions={
           <>
-            <Input
-              type="date"
-              aria-label="Date"
-              className="w-auto"
+            <DateFilter
+              single
+              label="Collection date"
+              value={{ from: date, to: date }}
               max={isoDate(new Date())}
-              value={date}
-              onChange={e => e.target.value && setDate(e.target.value)}
+              onChange={value => setDate(value.from)}
             />
             <DownloadPdfButton
               fileName={pdfName("Collections", date)}

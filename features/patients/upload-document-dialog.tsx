@@ -3,14 +3,17 @@
 import * as React from "react";
 
 import { FilePicker } from "@/components/shared/files";
+import { OcrScanButton } from "@/components/shared/ocr-scan-button";
 import { Field } from "@/components/shared/page";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { Input } from "@/components/ui/input";
 import { SelectField } from "@/components/ui/select-field";
 import { useAction } from "@/lib/api/client";
 import { humanize } from "@/lib/format";
+import { extractDocumentFields } from "@/lib/ocr";
 import { DOCUMENT_KINDS, type DocumentKind, type ID } from "@/lib/sim/schema";
 import type { PreparedUpload } from "@/lib/uploads";
+import { prepareUpload } from "@/lib/uploads";
 
 /**
  * Uploads a document to the patient record — a scanned consent form, an
@@ -81,6 +84,22 @@ export function UploadDocumentDialog({
         save.mutate();
       }}
     >
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed border-border bg-surface-subtle p-3">
+        <p className="text-xs text-muted-foreground">
+          Scan a page to identify its title and document type automatically.
+        </p>
+        <OcrScanButton
+          label="Scan document"
+          onFile={async selected =>
+            setFile(await prepareUpload(selected, "document"))
+          }
+          onRecognized={text => {
+            const fields = extractDocumentFields(text);
+            if (fields.title) setTitle(fields.title);
+            setKind(fields.kind);
+          }}
+        />
+      </div>
       <Field label="File" required>
         <FilePicker
           purpose="document"

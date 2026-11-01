@@ -128,6 +128,13 @@ export const REFERENCES: Ref[] = [
   ["feedback", "departmentId", "departments"],
   ["feedback", "doctorId", "staff", true],
   ["feedback", "followUpById", "staff", true],
+  ["feedbackRequests", "patientId", "patients"],
+  ["feedbackRequests", "encounterId", "encounters"],
+  ["feedbackRequests", "admissionId", "admissions", true],
+  ["feedbackRequests", "departmentId", "departments"],
+  ["feedbackRequests", "doctorId", "staff", true],
+  ["feedbackRequests", "feedbackId", "feedback", true],
+  ["feedbackRequests", "createdById", "staff"],
   ["roster", "staffId", "staff"],
   ["roster", "shiftId", "shifts", true],
   ["roster", "departmentId", "departments"],
@@ -179,6 +186,9 @@ export const UNIQUE_KEYS: Array<[table: TableName, fields: string[]]> = [
   ["medicalRecords", ["encounterId"]],
   ["complaints", ["code"]],
   ["feedback", ["code"]],
+  ["feedbackRequests", ["token"]],
+  ["feedbackRequests", ["process", "sourceId"]],
+  ["feedbackRequests", ["feedbackId"]],
   ["shifts", ["code"]],
   ["roster", ["staffId", "date"]],
   ["attendance", ["staffId", "date"]],
@@ -666,7 +676,8 @@ export function checkIntegrity(db: Database): IntegrityIssue[] {
   // photo and a document one scanned copy.
   const single = new Set<string>();
   for (const file of db.files) {
-    if (!ids.get(FILE_OWNER_TABLE[file.ownerType])?.has(file.ownerId))
+    const ownerTable = FILE_OWNER_TABLE[file.ownerType];
+    if (ownerTable && !ids.get(ownerTable)?.has(file.ownerId))
       add(
         "File without its owner",
         `${file.id}: ${file.ownerType} ${file.ownerId}`
@@ -684,7 +695,7 @@ export function checkIntegrity(db: Database): IntegrityIssue[] {
 }
 
 /** The table each kind of file owner lives in. */
-const FILE_OWNER_TABLE: Record<FileOwner, TableName> = {
+const FILE_OWNER_TABLE: Partial<Record<FileOwner, TableName>> = {
   PATIENT_PHOTO: "patients",
   STAFF_PHOTO: "staff",
   DOCUMENT: "documents",

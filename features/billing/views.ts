@@ -64,12 +64,10 @@ export function invoicesView(
     q?: string;
     setting?: string;
     category?: string;
-    days?: number;
+    from?: string;
+    to?: string;
   }
 ) {
-  const since = filters.days
-    ? new Date(now.getTime() - filters.days * 86_400_000).toISOString()
-    : undefined;
   const totals = allInvoiceTotals(db);
   const byInvoice = new Map<ID, InvoiceItem[]>();
   for (const item of db.invoiceItems)
@@ -108,7 +106,9 @@ export function invoicesView(
         !row.categories.includes(filters.category as ChargeCategory)
       )
         return false;
-      if (since && row.createdAt < since && row.status === "PAID") return false;
+      const created = row.createdAt.slice(0, 10);
+      if (filters.from && created < filters.from) return false;
+      if (filters.to && created > filters.to) return false;
       if (
         filters.q &&
         !matches(

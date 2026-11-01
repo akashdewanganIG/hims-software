@@ -12,7 +12,7 @@ import {
   SelectField,
   StatCard,
 } from "@/components/shared/page";
-import { CategorySwitcher } from "@/components/ui/category-switcher";
+import { DateFilter, type DateRangeValue } from "@/components/ui/date-filter";
 import { SearchInput } from "@/components/ui/search-input";
 import { Tag, type TagTone } from "@/components/ui/tag";
 import { useTransactions, type TxnRow } from "@/features/pharmacy/api";
@@ -25,6 +25,7 @@ import {
   pluralize,
 } from "@/lib/format";
 import { PHARMACY_TXN_TYPES } from "@/lib/sim/schema";
+import { addDaysIso, isoDate } from "@/lib/sim/time";
 
 const TYPE_TONE: Record<string, TagTone> = {
   DISPENSE: "progress",
@@ -36,13 +37,16 @@ const TYPE_TONE: Record<string, TagTone> = {
 
 export default function TransactionsPage() {
   const [type, setType] = React.useState("");
-  const [days, setDays] = React.useState(7);
+  const [range, setRange] = React.useState<DateRangeValue>(() => {
+    const to = isoDate(new Date());
+    return { from: addDaysIso(to, -6), to };
+  });
   const [q, setQ] = React.useState("");
   const {
     data: rows = [],
     isLoading,
     error,
-  } = useTransactions({ type: type || undefined, days, q: q || undefined });
+  } = useTransactions({ type: type || undefined, ...range, q: q || undefined });
 
   const sum = (t: string) =>
     rows.filter(r => r.type === t).reduce((s, r) => s + r.value, 0);
@@ -208,14 +212,33 @@ export default function TransactionsPage() {
           empty="No transactions in this period."
           toolbar={
             <>
-              <CategorySwitcher
+              <DateFilter
                 label="Period"
-                value={String(days)}
-                onValueChange={v => setDays(Number(v))}
-                items={[
-                  { value: "1", label: "24 h" },
-                  { value: "7", label: "7 days" },
-                  { value: "30", label: "30 days" },
+                value={range}
+                onChange={setRange}
+                max={isoDate(new Date())}
+                presets={[
+                  {
+                    label: "Today",
+                    value: {
+                      from: isoDate(new Date()),
+                      to: isoDate(new Date()),
+                    },
+                  },
+                  {
+                    label: "Last 7 days",
+                    value: {
+                      from: addDaysIso(isoDate(new Date()), -6),
+                      to: isoDate(new Date()),
+                    },
+                  },
+                  {
+                    label: "Last 30 days",
+                    value: {
+                      from: addDaysIso(isoDate(new Date()), -29),
+                      to: isoDate(new Date()),
+                    },
+                  },
                 ]}
               />
               <SearchInput

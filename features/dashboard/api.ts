@@ -8,6 +8,6 @@ export function useDashboard() {
   return useView("dashboard.home", {}, { refetchInterval: 30_000 });
 }
 
-export function useDashboardTrend() {
-  return useView("dashboard.trend", {}, { refetchInterval: 60_000 });
+export function useDashboardTrend(range: { from: string; to: string }) {
+  return useView("dashboard.trend", range, { refetchInterval: 60_000 });
 }

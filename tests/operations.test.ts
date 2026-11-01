@@ -342,6 +342,36 @@ test("OPD: walk-in → vitals → consultation → orders → close → pharmacy
     h.db.encounters.find(e => e.id === encounter.id)!.status,
     "CLOSED"
   );
+  const feedbackRequest = h.db.feedbackRequests.find(
+    request =>
+      request.process === "OPD_VISIT" && request.sourceId === encounter.id
+  )!;
+  assert.match(feedbackRequest.token, /^[0-9a-f-]{36}$/i);
+  assert.equal(feedbackRequest.status, "READY");
+  h.run(desk, "feedback.openWhatsapp", { requestId: feedbackRequest.id });
+  assert.equal(feedbackRequest.status, "WHATSAPP_OPENED");
+  const publicFeedback = h.run(desk, "feedback.submitPublic", {
+    token: feedbackRequest.token,
+    anonymous: false,
+    rating: 5,
+    categories: ["DOCTOR_CONSULTATION"],
+    comments: "The doctor explained the treatment clearly.",
+  });
+  assert.equal(publicFeedback.channel, "WHATSAPP_LINK");
+  assert.equal(feedbackRequest.status, "SUBMITTED");
+  assert.equal(feedbackRequest.feedbackId, publicFeedback.id);
+  h.refuse(
+    desk,
+    "feedback.submitPublic",
+    {
+      token: feedbackRequest.token,
+      anonymous: false,
+      rating: 4,
+      categories: [],
+      comments: "Duplicate",
+    },
+    { message: /already been submitted/ }
+  );
   const record = h.db.medicalRecords.find(r => r.encounterId === encounter.id)!;
   assert.equal(record.recordType, "OPD_CASE_SHEET");
   assert.equal(
@@ -1367,6 +1397,15 @@ test("IPD: admit → notes → orders → transfer → discharge (with refusals)
   assert.equal(
     h.db.encounters.find(e => e.id === admission.encounterId)!.status,
     "CLOSED"
+  );
+  assert.ok(
+    h.db.feedbackRequests.some(
+      request =>
+        request.process === "IPD_DISCHARGE" &&
+        request.sourceId === admission.id &&
+        request.status === "READY"
+    ),
+    "discharge prepares one patient feedback request"
   );
   const finalBill = h.db.invoices.find(i => i.id === runningBill.id)!;
   assert.equal(finalBill.status, "PAID", "settled at clearance, to the rupee");
@@ -3208,6 +3247,36 @@ test("records: photos, documents, complaint and staff edits, bill lines, prescri
   h.run(pharmacist, "pharmacy.deleteMedicine", { medicineId: added.id });
   assert.ok(!h.db.medicines.some(m => m.id === added.id));
 
+  h.assertIntact();
+  h.assertShadowMatches();
+});
+
+test("documents: publish immutable public PDF and image snapshots", () => {
+  const h = new Hospital();
+  const admin = h.login("ADMINISTRATOR");
+  const token = "550e8400-e29b-41d4-a716-446655440000";
+  const result = h.run(admin, "document.share", {
+    token,
+    file: pdfUpload("Shared-invoice.pdf"),
+  });
+  const file = h.db.files.find(f => f.id === result.fileId);
+  assert.equal(file?.ownerType, "PUBLIC_DOCUMENT");
+  assert.equal(file?.ownerId, token);
+  const imageToken = "550e8400-e29b-41d4-a716-446655440001";
+  const image = h.run(admin, "document.share", {
+    token: imageToken,
+    file: pngUpload("Shared-scan.png"),
+  });
+  assert.equal(
+    h.db.files.find(f => f.id === image.fileId)?.mimeType,
+    "image/png"
+  );
+  h.refuse(
+    admin,
+    "document.share",
+    { token, file: pdfUpload("Duplicate.pdf") },
+    { message: /already exists/ }
+  );
   h.assertIntact();
   h.assertShadowMatches();
 });

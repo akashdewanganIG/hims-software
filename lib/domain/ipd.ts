@@ -32,6 +32,7 @@ import {
   openInvoiceFor,
   postCharge,
 } from "./billing";
+import { createIpdFeedbackRequest } from "./quality";
 import { activateAdmission } from "./encounters";
 import { closeUncollected } from "./pharmacy";
 import { addDocument, createMedicalRecord, refreshRecordFor } from "./mrd";
@@ -824,6 +825,7 @@ export function dischargePatient(tx: Tx, admissionId: ID) {
     action: "discharged",
     summary: `${patient.firstName} ${patient.lastName} discharged; bed ${bed.code} released for cleaning`,
   });
+  createIpdFeedbackRequest(tx, admission.id);
   return admission;
 }
 

@@ -5,12 +5,19 @@ import { useRouter } from "next/navigation";
 
 import type { TDocumentDefinitions } from "pdfmake/interfaces";
 
-import { ArrowLeft, Printer } from "@/components/icons";
+import { ArrowLeft, Copy, Printer } from "@/components/icons";
+import {
+  createDocumentQrDataUrl,
+  DocumentQr,
+} from "@/components/shared/document-qr";
 import { DownloadPdfButton } from "@/components/shared/download-pdf";
 import { LogoPlaceholder } from "@/components/layout/logo-placeholder";
 import { Button } from "@/components/ui/button";
 import { formatDateTime } from "@/lib/format";
+import { buildSharedPdf } from "@/lib/pdf/share";
+import { useSession } from "@/lib/session";
 import { HOSPITAL } from "@/lib/sim/reference";
+import { toast } from "@/lib/toast";
 
 /**
  * Letterhead document for printing (discharge summary, invoice). The action
@@ -31,6 +38,40 @@ export function PrintDocument({
   pdf?: { fileName: string; build: () => TDocumentDefinitions };
 }) {
   const router = useRouter();
+  const { user } = useSession();
+  const [publicUrl, setPublicUrl] = React.useState<string>();
+  const [qrImage, setQrImage] = React.useState<string>();
+  const [sharing, setSharing] = React.useState(false);
+
+  const ensureShare = async () => {
+    if (publicUrl) {
+      if (!qrImage) setQrImage(await createDocumentQrDataUrl(publicUrl));
+      return publicUrl;
+    }
+    if (!pdf || !user) return undefined;
+    const result = await buildSharedPdf(user.id, pdf.fileName, pdf.build);
+    if (result.publicUrl) {
+      const image = await createDocumentQrDataUrl(result.publicUrl);
+      setPublicUrl(result.publicUrl);
+      setQrImage(image);
+    }
+    return result.publicUrl;
+  };
+
+  const print = async () => {
+    setSharing(true);
+    try {
+      await ensureShare();
+      await new Promise<void>(resolve =>
+        requestAnimationFrame(() => resolve())
+      );
+      window.print();
+    } catch (error) {
+      toast.error(error, "Could not prepare the printable document");
+    } finally {
+      setSharing(false);
+    }
+  };
   return (
     <div className="mx-auto w-full max-w-4xl px-4 pb-10 pt-5 sm:px-5">
       <div className="no-print mb-4 flex items-center justify-between gap-2">
@@ -40,11 +81,40 @@ export function PrintDocument({
         </Button>
         <div className="flex flex-wrap items-center gap-2">
           {pdf ? (
-            <DownloadPdfButton fileName={pdf.fileName} build={pdf.build} />
+            <DownloadPdfButton
+              fileName={pdf.fileName}
+              build={pdf.build}
+              onShared={setPublicUrl}
+            />
           ) : null}
-          <Button onClick={() => window.print()}>
+          {pdf ? (
+            <Button
+              variant="outline"
+              disabled={sharing}
+              onClick={async () => {
+                setSharing(true);
+                try {
+                  const url = await ensureShare();
+                  if (!url) {
+                    toast.info("Public links require shared database mode.");
+                    return;
+                  }
+                  await navigator.clipboard.writeText(url);
+                  toast.success("Public document link copied");
+                } catch (error) {
+                  toast.error(error, "Could not create the public link");
+                } finally {
+                  setSharing(false);
+                }
+              }}
+            >
+              <Copy className="size-4" />
+              {publicUrl ? "Copy public link" : "Create public link"}
+            </Button>
+          ) : null}
+          <Button onClick={() => void print()} disabled={sharing}>
             <Printer className="size-4" />
-            Print
+            {sharing ? "Preparing…" : "Print"}
           </Button>
         </div>
       </div>
@@ -74,6 +144,7 @@ export function PrintDocument({
             Generated {formatDateTime(new Date())} · Demo data — not a medical
             or tax document
           </p>
+          {publicUrl ? <DocumentQr value={publicUrl} image={qrImage} /> : null}
         </footer>
       </article>
     </div>

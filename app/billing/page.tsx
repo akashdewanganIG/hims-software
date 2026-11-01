@@ -22,6 +22,7 @@ import {
   StatusBadge,
 } from "@/components/shared/page";
 import { CategorySwitcher } from "@/components/ui/category-switcher";
+import { DateFilter, type DateRangeValue } from "@/components/ui/date-filter";
 import { SearchInput } from "@/components/ui/search-input";
 import { Tag } from "@/components/ui/tag";
 import {
@@ -38,6 +39,9 @@ import {
   pluralize,
 } from "@/lib/format";
 import { CHARGE_CATEGORIES } from "@/lib/sim/schema";
+import { addDaysIso, isoDate } from "@/lib/sim/time";
+
+const today = () => isoDate(new Date());
 
 export default function BillingPage() {
   const router = useRouter();
@@ -45,6 +49,11 @@ export default function BillingPage() {
   const [setting, setSetting] = React.useState("");
   const [category, setCategory] = React.useState("");
   const [q, setQ] = React.useState("");
+  const [dateRange, setDateRange] = React.useState<DateRangeValue>(() => ({
+    from: addDaysIso(today(), -29),
+    to: today(),
+  }));
+  const dated = view === "paid" || view === "all";
   const {
     data: rows = [],
     isLoading,
@@ -54,7 +63,8 @@ export default function BillingPage() {
     q: q || undefined,
     setting: setting || undefined,
     category: category || undefined,
-    days: view === "paid" || view === "all" ? 30 : undefined,
+    from: dated ? dateRange.from : undefined,
+    to: dated ? dateRange.to : undefined,
   });
   const { data: summary } = useBillingSummary();
 
@@ -237,10 +247,32 @@ export default function BillingPage() {
                     label: "Refund due",
                     count: summary?.refundDue,
                   },
-                  { value: "paid", label: "Paid · 30 d" },
+                  { value: "paid", label: "Paid" },
                   { value: "all", label: "All" },
                 ]}
               />
+              {dated ? (
+                <DateFilter
+                  value={dateRange}
+                  onChange={setDateRange}
+                  label="Bill date range"
+                  max={today()}
+                  presets={[
+                    {
+                      label: "Last 7 days",
+                      value: { from: addDaysIso(today(), -6), to: today() },
+                    },
+                    {
+                      label: "Last 30 days",
+                      value: { from: addDaysIso(today(), -29), to: today() },
+                    },
+                    {
+                      label: "Last 90 days",
+                      value: { from: addDaysIso(today(), -89), to: today() },
+                    },
+                  ]}
+                />
+              ) : null}
               <SearchInput
                 wrapperClassName="min-w-48 flex-1"
                 placeholder="Bill no., patient, UHID or phone"

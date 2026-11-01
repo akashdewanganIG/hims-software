@@ -65,6 +65,7 @@ export const TABLE_SCHEMA = {
   complaints: schema.complaints,
   complaintNotes: schema.complaintNotes,
   feedback: schema.feedback,
+  feedbackRequests: schema.feedbackRequests,
   shifts: schema.shifts,
   roster: schema.roster,
   attendance: schema.attendance,

@@ -408,6 +408,7 @@ export const fileOwnerEnum = pgEnum("FileOwner", [
   "STAFF_PHOTO",
   "DOCUMENT",
   "COMPLAINT",
+  "PUBLIC_DOCUMENT",
 ]);
 
 export const complaintStatusEnum = pgEnum("ComplaintStatus", [
@@ -472,6 +473,18 @@ export const feedbackChannelEnum = pgEnum("FeedbackChannel", [
   "SMS_LINK",
   "IN_PERSON",
   "EMAIL",
+  "WHATSAPP_LINK",
+]);
+
+export const feedbackRequestProcessEnum = pgEnum("FeedbackRequestProcess", [
+  "OPD_VISIT",
+  "IPD_DISCHARGE",
+]);
+
+export const feedbackRequestStatusEnum = pgEnum("FeedbackRequestStatus", [
+  "READY",
+  "WHATSAPP_OPENED",
+  "SUBMITTED",
 ]);
 
 export const followUpStatusEnum = pgEnum("FollowUpStatus", [
@@ -1983,6 +1996,76 @@ export const feedback = pgTable(
     foreignKey({
       name: "feedback_follow_up_by_id_fkey",
       columns: [t.followUpById],
+      foreignColumns: [staff.id],
+    }),
+  ]
+);
+
+export const feedbackRequests = pgTable(
+  "feedback_requests",
+  {
+    id: text("id").primaryKey(),
+    seq: serial("seq"),
+    token: text("token").notNull(),
+    process: feedbackRequestProcessEnum("process").notNull(),
+    sourceId: text("source_id").notNull(),
+    patientId: text("patient_id").notNull(),
+    encounterId: text("encounter_id").notNull(),
+    admissionId: text("admission_id"),
+    departmentId: text("department_id").notNull(),
+    doctorId: text("doctor_id"),
+    phone: text("phone").notNull(),
+    completedAt: instant("completed_at").notNull(),
+    status: feedbackRequestStatusEnum("status").notNull(),
+    whatsappOpenedAt: instant("whatsapp_opened_at"),
+    submittedAt: instant("submitted_at"),
+    feedbackId: text("feedback_id"),
+    createdById: text("created_by_id").notNull(),
+    createdAt: instant("created_at").notNull(),
+    updatedAt: instant("updated_at").notNull(),
+  },
+  (t): PgTableExtraConfigValue[] => [
+    uniqueIndex("feedback_requests_token_key").on(t.token),
+    uniqueIndex("feedback_requests_process_source_key").on(
+      t.process,
+      t.sourceId
+    ),
+    uniqueIndex("feedback_requests_feedback_id_key").on(t.feedbackId),
+    index("feedback_requests_patient_id_idx").on(t.patientId),
+    index("feedback_requests_created_at_idx").on(t.createdAt),
+    foreignKey({
+      name: "feedback_requests_patient_id_fkey",
+      columns: [t.patientId],
+      foreignColumns: [patients.id],
+    }),
+    foreignKey({
+      name: "feedback_requests_encounter_id_fkey",
+      columns: [t.encounterId],
+      foreignColumns: [encounters.id],
+    }),
+    foreignKey({
+      name: "feedback_requests_admission_id_fkey",
+      columns: [t.admissionId],
+      foreignColumns: [admissions.id],
+    }),
+    foreignKey({
+      name: "feedback_requests_department_id_fkey",
+      columns: [t.departmentId],
+      foreignColumns: [departments.id],
+    }),
+    foreignKey({
+      name: "feedback_requests_doctor_id_fkey",
+      columns: [t.doctorId],
+      foreignColumns: [staff.id],
+    }),
+    foreignKey({
+      name: "feedback_requests_feedback_id_fkey",
+      columns: [t.feedbackId],
+      foreignColumns: [feedback.id],
+    }),
+    foreignKey({
+      name: "feedback_requests_created_by_id_fkey",
+      columns: [t.createdById],
       foreignColumns: [staff.id],
     }),
   ]

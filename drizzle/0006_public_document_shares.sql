@@ -1,0 +1,1 @@
+ALTER TYPE "public"."FileOwner" ADD VALUE 'PUBLIC_DOCUMENT';

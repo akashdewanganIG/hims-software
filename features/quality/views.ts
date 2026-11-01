@@ -14,8 +14,13 @@ import {
   staffName,
   type PatientRef,
 } from "@/lib/api/lookup";
-import type { Complaint, Feedback, ID } from "@/lib/sim/schema";
-import { hoursBetween } from "@/lib/sim/time";
+import type {
+  Complaint,
+  Feedback,
+  FeedbackRequest,
+  ID,
+} from "@/lib/sim/schema";
+import { addDays, fromIsoDate, hoursBetween } from "@/lib/sim/time";
 
 export interface ComplaintRow {
   id: ID;
@@ -179,15 +184,15 @@ export function feedbackView(
     view: "all" | "followup" | "low" | "high";
     q?: string;
     departmentId?: string;
-    days: number;
+    from: string;
+    to: string;
   }
 ) {
-  const since = new Date(
-    now.getTime() - filters.days * 86_400_000
-  ).toISOString();
+  const from = fromIsoDate(filters.from).toISOString();
+  const to = addDays(fromIsoDate(filters.to), 1).toISOString();
   return db.feedback
     .filter(f => {
-      if (f.submittedAt < since) return false;
+      if (f.submittedAt < from || f.submittedAt >= to) return false;
       if (
         filters.view === "followup" &&
         !(f.followUpRequired && f.followUpStatus !== "COMPLETED")
@@ -221,13 +226,95 @@ export function feedbackView(
     .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
 }
 
-export function feedbackSummaryView(
+export interface FeedbackRequestRow {
+  id: ID;
+  token: string;
+  process: FeedbackRequest["process"];
+  processLabel: string;
+  sourceCode: string;
+  patient: PatientRef;
+  department: string;
+  doctor?: string;
+  phone: string;
+  completedAt: string;
+  status: FeedbackRequest["status"];
+  whatsappOpenedAt?: string;
+  submittedAt?: string;
+  feedbackCode?: string;
+  createdAt: string;
+}
+
+export function feedbackRequestsView(
   db: Database,
   now: Date,
-  { days }: { days: number }
+  filters: {
+    status?: string;
+    q?: string;
+    from: string;
+    to: string;
+  }
 ) {
-  const since = new Date(now.getTime() - days * 86_400_000).toISOString();
-  const rows = db.feedback.filter(f => f.submittedAt >= since);
+  const from = fromIsoDate(filters.from).toISOString();
+  const to = addDays(fromIsoDate(filters.to), 1).toISOString();
+  return db.feedbackRequests
+    .filter(request => {
+      if (request.createdAt < from || request.createdAt >= to) return false;
+      if (filters.status && request.status !== filters.status) return false;
+      const patient = patientRef(db, request.patientId, now);
+      const sourceCode =
+        request.process === "OPD_VISIT"
+          ? db.encounters.find(row => row.id === request.sourceId)?.code
+          : db.admissions.find(row => row.id === request.sourceId)?.code;
+      return (
+        !filters.q ||
+        matches(
+          filters.q,
+          patient?.name,
+          patient?.uhid,
+          request.phone,
+          sourceCode
+        )
+      );
+    })
+    .map<FeedbackRequestRow>(request => ({
+      id: request.id,
+      token: request.token,
+      process: request.process,
+      processLabel:
+        request.process === "OPD_VISIT" ? "OPD visit" : "IPD discharge",
+      sourceCode:
+        (request.process === "OPD_VISIT"
+          ? db.encounters.find(row => row.id === request.sourceId)?.code
+          : db.admissions.find(row => row.id === request.sourceId)?.code) ??
+        "—",
+      patient: patientRef(db, request.patientId, now)!,
+      department: departmentName(db, request.departmentId),
+      doctor: request.doctorId
+        ? staffName(getStaff(db, request.doctorId))
+        : undefined,
+      phone: request.phone,
+      completedAt: request.completedAt,
+      status: request.status,
+      whatsappOpenedAt: request.whatsappOpenedAt,
+      submittedAt: request.submittedAt,
+      feedbackCode: request.feedbackId
+        ? db.feedback.find(row => row.id === request.feedbackId)?.code
+        : undefined,
+      createdAt: request.createdAt,
+    }))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export function feedbackSummaryView(
+  db: Database,
+  _now: Date,
+  { from, to }: { from: string; to: string }
+) {
+  const start = fromIsoDate(from).toISOString();
+  const end = addDays(fromIsoDate(to), 1).toISOString();
+  const rows = db.feedback.filter(
+    f => f.submittedAt >= start && f.submittedAt < end
+  );
   const distribution = [5, 4, 3, 2, 1].map(r => ({
     rating: r,
     count: rows.filter(f => f.rating === r).length,

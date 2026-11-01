@@ -5,6 +5,7 @@ import * as React from "react";
 import { Edit, Plus, Trash2 } from "@/components/icons";
 import { DataTable, type Column } from "@/components/shared/data-table";
 import { RefCode } from "@/components/shared/entity";
+import { OcrScanButton } from "@/components/shared/ocr-scan-button";
 import {
   DetailGrid,
   DetailRow,
@@ -37,6 +38,7 @@ import { Tag } from "@/components/ui/tag";
 import { useInventory, type InventoryRow } from "@/features/pharmacy/api";
 import { matches } from "@/lib/api/lookup";
 import { useAction } from "@/lib/api/client";
+import { extractStockReceiptFields } from "@/lib/ocr";
 import {
   formatDate,
   formatINR,
@@ -570,6 +572,30 @@ function ReceiveDialog({
         save.mutate();
       }}
     >
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed border-border bg-surface-subtle p-3">
+        <p className="text-xs text-muted-foreground">
+          Scan the supplier invoice to prefill receipt details.
+        </p>
+        <OcrScanButton
+          label="Scan invoice"
+          onRecognized={text => {
+            const fields = extractStockReceiptFields(text);
+            setForm(current => ({
+              ...current,
+              ...(fields.supplier ? { supplier: fields.supplier } : {}),
+              ...(fields.invoiceNumber
+                ? { invoiceNumber: fields.invoiceNumber.toUpperCase() }
+                : {}),
+              ...(fields.batchNumber
+                ? { batchNumber: fields.batchNumber.toUpperCase() }
+                : {}),
+              ...(fields.expiryDate ? { expiryDate: fields.expiryDate } : {}),
+              ...(fields.quantity ? { quantity: fields.quantity } : {}),
+              ...(fields.costPrice ? { costPrice: fields.costPrice } : {}),
+            }));
+          }}
+        />
+      </div>
       <Field label="Medicine" required>
         <SelectField
           value={form.medicineId}

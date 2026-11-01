@@ -4,12 +4,14 @@ import * as React from "react";
 import { z } from "zod";
 
 import { FilePicker } from "@/components/shared/files";
+import { OcrScanButton } from "@/components/shared/ocr-scan-button";
 import { Field, FormSection } from "@/components/shared/page";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { Input } from "@/components/ui/input";
 import { SelectField } from "@/components/ui/select-field";
 import { useAction } from "@/lib/api/client";
 import type { PatientInput } from "@/lib/domain/patients";
+import { extractPatientFields } from "@/lib/ocr";
 import {
   BLOOD_GROUPS,
   type BloodGroup,
@@ -206,6 +208,23 @@ export function PatientFormDialog({
       bodyClassName="gap-5"
     >
       <FormSection title="Identity">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed border-border bg-surface-subtle p-3">
+          <p className="text-xs text-muted-foreground">
+            Scan an ID card or registration sheet to prefill matching fields.
+          </p>
+          <OcrScanButton
+            onRecognized={text => {
+              const fields = extractPatientFields(text);
+              setValues(current => {
+                const next = { ...current };
+                for (const [key, value] of Object.entries(fields))
+                  if (value) next[key as keyof FormValues] = value;
+                return next;
+              });
+              setErrors({});
+            }}
+          />
+        </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="First name" required error={errors.firstName}>
             <Input

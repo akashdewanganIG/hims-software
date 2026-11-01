@@ -20,7 +20,14 @@ import type {
   PharmacyTxnType,
   Prescription,
 } from "@/lib/sim/schema";
-import { addDaysIso, isSameDay, isoDate, minutesBetween } from "@/lib/sim/time";
+import {
+  addDays,
+  addDaysIso,
+  fromIsoDate,
+  isSameDay,
+  isoDate,
+  minutesBetween,
+} from "@/lib/sim/time";
 import { prescriptionView, type PrescriptionView } from "@/features/opd/views";
 
 export interface RxQueueRow {
@@ -310,19 +317,22 @@ export function transactionsView(
   filters: {
     type?: string;
     q?: string;
-    days: number;
+    from: string;
+    to: string;
   }
 ) {
-  const since = new Date(
-    now.getTime() - filters.days * 86_400_000
-  ).toISOString();
+  const from = fromIsoDate(filters.from).toISOString();
+  const to = addDays(fromIsoDate(filters.to), 1).toISOString();
   const lineBySource = new Map(
     db.invoiceItems
       .filter(i => i.sourceType === "PHARMACY_TXN")
       .map(i => [i.sourceId, i])
   );
   return db.pharmacyTransactions
-    .filter(t => t.at >= since && (!filters.type || t.type === filters.type))
+    .filter(
+      t =>
+        t.at >= from && t.at < to && (!filters.type || t.type === filters.type)
+    )
     .map<TxnRow>(t => {
       const m = db.medicines.find(x => x.id === t.medicineId)!;
       const batch = db.medicineBatches.find(b => b.id === t.batchId);
