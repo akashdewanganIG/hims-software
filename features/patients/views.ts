@@ -144,6 +144,19 @@ export interface PatientRecord {
   }>;
   prescriptions: PrescriptionView[];
   labOrders: LabOrderView[];
+  imaging: Array<{
+    id: ID;
+    accessionNumber: string;
+    orderedAt: string;
+    scheduledAt?: string;
+    procedure: string;
+    modality: string;
+    status: string;
+    criticality?: string;
+    reportStatus?: string;
+    impression?: string;
+    finalisedAt?: string;
+  }>;
   bills: Array<{
     id: ID;
     code: string;
@@ -269,6 +282,31 @@ export function patientRecordView(
     .filter(p => p.patientId === id)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .map(p => prescriptionView(db, p.id));
+  const imaging = db.radiologyOrders
+    .filter(order => order.patientId === id)
+    .sort((a, b) => b.orderedAt.localeCompare(a.orderedAt))
+    .map(order => {
+      const report = db.radiologyReports
+        .filter(row => row.orderId === order.id)
+        .sort((a, b) => b.version - a.version)[0];
+      return {
+        id: order.id,
+        accessionNumber: order.accessionNumber,
+        orderedAt: order.orderedAt,
+        scheduledAt: order.scheduledAt,
+        procedure:
+          db.radiologyProcedures.find(row => row.id === order.procedureId)
+            ?.name ?? "Imaging study",
+        modality:
+          db.radiologyProcedures.find(row => row.id === order.procedureId)
+            ?.modality ?? "IMAGING",
+        status: order.status,
+        criticality: report?.criticality,
+        reportStatus: report?.status,
+        impression: report?.impression,
+        finalisedAt: report?.finalisedAt,
+      };
+    });
   const bills = db.invoices
     .filter(i => i.patientId === id)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
@@ -344,6 +382,20 @@ export function patientRecordView(
           tone: abnormal ? ("danger" as const) : ("success" as const),
         };
       }),
+    ...imaging.map(study => ({
+      id: `rad-${study.id}`,
+      at: study.finalisedAt ?? study.scheduledAt ?? study.orderedAt,
+      kind: study.reportStatus ? "Imaging report" : "Imaging order",
+      title: `${study.procedure} · ${study.accessionNumber}`,
+      detail: study.impression ?? `${study.modality} · ${study.status}`,
+      href: `/radiology/studies/${study.id}`,
+      tone:
+        study.criticality === "CRITICAL"
+          ? ("danger" as const)
+          : study.reportStatus
+            ? ("success" as const)
+            : ("info" as const),
+    })),
     ...db.documents
       .filter(d => d.patientId === id)
       .map(d => ({
@@ -431,6 +483,7 @@ export function patientRecordView(
     ),
     prescriptions,
     labOrders,
+    imaging,
     bills,
     documents: db.documents
       .filter(d => d.patientId === id)

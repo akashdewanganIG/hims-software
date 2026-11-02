@@ -57,6 +57,27 @@
       "when": 1793543751800,
       "tag": "0007_brief_blazing_skull",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793608886537,
+      "tag": "0008_aromatic_loa",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793609100430,
+      "tag": "0009_talented_mauler",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793613468968,
+      "tag": "0010_add_radiology_entity_type",
+      "breakpoints": true
     }
   ]
 }

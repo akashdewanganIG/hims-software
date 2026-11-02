@@ -20,7 +20,13 @@ import { STAFF } from "../sim/reference";
 import type { Database, ID, Staff, User } from "../sim/schema";
 
 export type RecordKind =
-  "patient" | "appointment" | "admission" | "invoice" | "enquiry" | "lab";
+  | "patient"
+  | "appointment"
+  | "admission"
+  | "invoice"
+  | "enquiry"
+  | "lab"
+  | "radiology";
 
 export interface RecordHit {
   id: string;
@@ -133,6 +139,29 @@ export function searchRecordsView(
           label: `${o.code} · ${patientName(o.patientId)}`,
           hint: o.sampleId ?? status(o.status),
           href: `/lab?open=${o.id}`,
+        }))
+    );
+  if (allowed("radiology"))
+    take(
+      4,
+      db.radiologyOrders
+        .filter(order => {
+          const procedure = db.radiologyProcedures.find(
+            row => row.id === order.procedureId
+          );
+          return matches(
+            q,
+            order.accessionNumber,
+            patientName(order.patientId),
+            procedure?.name
+          );
+        })
+        .map(order => ({
+          id: `radiology:${order.id}`,
+          kind: "radiology" as const,
+          label: `${order.accessionNumber} · ${patientName(order.patientId)}`,
+          hint: `${db.radiologyProcedures.find(row => row.id === order.procedureId)?.name ?? "Imaging"} · ${status(order.status)}`,
+          href: `/radiology/studies/${order.id}`,
         }))
     );
   return out;

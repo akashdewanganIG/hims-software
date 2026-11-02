@@ -321,46 +321,87 @@ export function BookAppointmentDialog({
               Loading slots…
             </p>
           ) : slots.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
-              No OPD slots on this date.
-            </p>
+            <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
+              <p>No OPD slots on this date.</p>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const next = new Date(date);
+                  next.setDate(next.getDate() + 1);
+                  setDate(isoDate(next));
+                }}
+              >
+                Check next day →
+              </Button>
+            </div>
           ) : (
-            <div
-              className="grid grid-cols-4 gap-1.5 sm:grid-cols-6 lg:grid-cols-8"
-              role="radiogroup"
-              aria-label="Time slot"
-            >
-              {slots.map(s => {
-                const disabled = s.taken || s.past || Boolean(blocked);
-                const selected = slot === s.iso;
-                return (
-                  <button
-                    key={s.iso}
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    disabled={disabled}
-                    onClick={() => setSlot(s.iso)}
-                    title={
-                      s.taken
-                        ? "Already booked"
-                        : s.past
-                          ? "In the past"
-                          : undefined
-                    }
-                    className={cn(
-                      "h-8 rounded-md border text-xs font-medium tabular-nums outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/30",
-                      selected
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border bg-surface text-foreground hover:border-border-strong hover:bg-surface-subtle",
-                      disabled &&
-                        "cursor-not-allowed border-border-subtle bg-surface-secondary text-text-disabled line-through hover:bg-surface-secondary"
-                    )}
-                  >
-                    {formatTime(s.iso)}
-                  </button>
-                );
-              })}
+            <div className="space-y-2">
+              {slots.length > 0 &&
+              slots.every(s => s.taken || s.past || Boolean(blocked)) ? (
+                <Alert
+                  tone="warning"
+                  title={
+                    date === today
+                      ? "All consultation slots for today have passed or are booked"
+                      : "All slots for this date are booked"
+                  }
+                  action={
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        const next = new Date(date);
+                        next.setDate(next.getDate() + 1);
+                        setDate(isoDate(next));
+                      }}
+                    >
+                      Check next day →
+                    </Button>
+                  }
+                >
+                  Select the next date to view open appointment slots.
+                </Alert>
+              ) : null}
+              <div
+                className="grid grid-cols-4 gap-1.5 sm:grid-cols-6 lg:grid-cols-8"
+                role="radiogroup"
+                aria-label="Time slot"
+              >
+                {slots.map(s => {
+                  const disabled = s.taken || s.past || Boolean(blocked);
+                  const selected = slot === s.iso;
+                  return (
+                    <button
+                      key={s.iso}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      disabled={disabled}
+                      onClick={() => setSlot(s.iso)}
+                      title={
+                        s.taken
+                          ? "Already booked"
+                          : s.past
+                            ? "In the past"
+                            : undefined
+                      }
+                      className={cn(
+                        "h-8 rounded-md border text-xs font-medium tabular-nums outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/30",
+                        selected
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border bg-surface text-foreground hover:border-border-strong hover:bg-surface-subtle",
+                        disabled &&
+                          "cursor-not-allowed border-border-subtle bg-surface-secondary text-text-disabled line-through hover:bg-surface-secondary"
+                      )}
+                    >
+                      {formatTime(s.iso)}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
         </Field>

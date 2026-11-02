@@ -253,7 +253,9 @@ function moduleForRoute(file: string): Module | null {
     ["/patients", "ehr"],
     ["/pharmacy", "pharmacy"],
     ["/lab", "lab"],
+    ["/radiology", "radiology"],
     ["/beds", "beds"],
+    ["/alerts", "alerts"],
     ["/operations", "operations"],
     ["/wfm", "wfm"],
     ["/billing", "billing"],
@@ -262,6 +264,7 @@ function moduleForRoute(file: string): Module | null {
     ["/feedback", "feedback"],
     ["/analytics", "analytics"],
     ["/admin", "admin"],
+    ["/integrations", "integrations"],
     ["/architecture", "dashboard"],
   ];
   if (route === "/") return "dashboard";

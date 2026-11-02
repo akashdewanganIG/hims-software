@@ -35,6 +35,7 @@ import {
 import { transactTracked } from "../sim/journal";
 import { SCHEMA_VERSION, type Database, type ID } from "../sim/schema";
 import { generateDatabase } from "../sim/seed";
+import { upgradeV8ToV9 } from "../sim/upgrade";
 import { database } from "./db/client";
 import { changeLog, syncState } from "./db/schema";
 import {
@@ -128,37 +129,22 @@ async function loadState(): Promise<EngineState> {
     return replaceDataset(generateDatabase(new Date()).db, 0, null);
   }
 
-  // Versions 7 and 8 add standalone alerts and attendance tables. Their SQL
-  // migrations create the tables, so older hospital data can be adopted
-  // without rebuilding the dataset (and without discarding user changes).
-  if (
-    (meta.schemaVersion === 6 || meta.schemaVersion === 7) &&
-    SCHEMA_VERSION === 8
-  ) {
+  // Adopt old datasets additively without discarding user changes. Versions
+  // 6/7 first gain the version-8 alert/attendance arrays, then the version-9
+  // radiology master data and role grants.
+  if (meta.schemaVersion === 6 || meta.schemaVersion === 7) {
     const db = await readTables(database(), meta);
-    db.meta.schemaVersion = SCHEMA_VERSION;
-    const upgraded = await database()
-      .update(syncState)
-      .set({
-        schemaVersion: SCHEMA_VERSION,
-        updatedAt: new Date().toISOString(),
-      })
-      .where(
-        and(
-          eq(syncState.id, 1),
-          eq(syncState.epoch, meta.epoch),
-          eq(syncState.schemaVersion, meta.schemaVersion)
-        )
-      )
-      .returning({ id: syncState.id });
-    if (!upgraded.length) return loadState();
-    return {
-      db,
-      epoch: meta.epoch,
-      version: meta.version,
-      userChanges: meta.userChanges,
-      checkedAt: Date.now(),
-    };
+    db.alerts ??= [];
+    db.attendance ??= [];
+    db.meta.schemaVersion = 8;
+    upgradeV8ToV9(db, generateDatabase(new Date()).db);
+    return replaceDataset(db, meta.userChanges, meta.epoch);
+  }
+
+  if (meta.schemaVersion === 8) {
+    const db = await readTables(database(), meta);
+    upgradeV8ToV9(db, generateDatabase(new Date()).db);
+    return replaceDataset(db, meta.userChanges, meta.epoch);
   }
 
   if (meta.schemaVersion !== SCHEMA_VERSION) {

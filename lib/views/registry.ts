@@ -44,6 +44,14 @@ import {
   labWorklistView,
 } from "@/features/lab/views";
 import {
+  radiologyCatalogView,
+  radiologyEquipmentView,
+  radiologyOrderView,
+  radiologyScheduleView,
+  radiologySummaryView,
+  radiologyWorklistView,
+} from "@/features/radiology/views";
+import {
   medicalRecordView,
   medicalRecordsView,
   mrdSummaryView,
@@ -298,6 +306,46 @@ export const VIEWS = {
     modules: ["lab"],
     params: z.object({ patientId: id }),
     run: labOrderTargetsView,
+  }),
+  "radiology.worklist": view({
+    modules: ["radiology"],
+    params: z.object({
+      stage: z.enum([
+        "waiting",
+        "acquisition",
+        "reporting",
+        "completed",
+        "all",
+      ]),
+      q: filter,
+      modality: filter,
+    }),
+    run: radiologyWorklistView,
+  }),
+  "radiology.summary": view({
+    modules: ["radiology"],
+    params: none,
+    run: (db, now) => radiologySummaryView(db, now),
+  }),
+  "radiology.order": view({
+    modules: ["radiology"],
+    params: z.object({ id: maybeId }),
+    run: radiologyOrderView,
+  }),
+  "radiology.schedule": view({
+    modules: ["radiology"],
+    params: z.object({ date }),
+    run: radiologyScheduleView,
+  }),
+  "radiology.equipment": view({
+    modules: ["radiology"],
+    params: none,
+    run: db => radiologyEquipmentView(db),
+  }),
+  "radiology.catalog": view({
+    modules: ["radiology", "opd", "ipd"],
+    params: none,
+    run: db => radiologyCatalogView(db),
   }),
   "pharmacy.queue": view({
     modules: ["pharmacy"],

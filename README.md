@@ -1,6 +1,6 @@
 # HIMS Simulation — hospital information management simulation
 
-A working simulation of a hospital information management system: 16 connected
+A working simulation of a hospital information management system: 18 connected
 modules over one shared patient/staff/encounter model, role-based access that
 administrators manage from the app, and 30 days of realistic, fully linked
 hospital activity.
@@ -12,7 +12,8 @@ configured every signed-in user works on the same hospital.
 
 **Modules:** Enquiry · OPD · IPD · EHR / EMR · Pharmacy · Lab Services · Bed
 Management · Operations · WFM (staff & roster) · Billing · MRD · Complaints ·
-Feedback · Hospital Performance · Dashboard · Administration (User management).
+Feedback · Hospital Performance · Radiology & Imaging · API Integrations Preview ·
+Dashboard · Administration (User management).
 **Guide:** Architecture & Flows — the module map and workflows, cut to each
 login's access.
 
@@ -75,7 +76,7 @@ in a background worker) and keeps it in IndexedDB.
   the choice becomes a signed, httpOnly session cookie.
 - **Switch role:** profile menu → _Switch role_, or `⌘K` → "Switch role".
 - **Search anything:** `⌘K` / `Ctrl K`, or the search field at the top of the
-  sidebar — patient name, UHID, mobile, or APT / ADM / INV / ENQ / LAB numbers
+  sidebar — patient name, UHID, mobile, or APT / ADM / INV / ENQ / LAB / RAD numbers
   (limited to the modules your access covers).
 - **Simulation menu** (activity icon in the header): where the data lives, the
   cross-module integrity check, and _Reset simulation_ for an Administrator
@@ -94,8 +95,9 @@ pages a login can open) and **actions** (which buttons it gets); a **login**
 person — **custom access** that replaces the role's permissions. Granting an
 action also opens its module, and every login keeps its dashboard.
 
-Nine roles are seeded (Administrator, Receptionist, Doctor, Nurse, Pharmacist,
-Lab Technician, Billing Executive, MRD Staff, Operations Manager), plus one the
+Eleven roles are seeded (Administrator, Receptionist, Doctor, Nurse, Pharmacist,
+Lab Technician, Radiologist, Radiology Technician, Billing Executive, MRD Staff,
+Operations Manager), plus one the
 hospital "created" (Ward In-charge), a pharmacist with custom access (pharmacy
 plus the payment counter) and one disabled login, so User management has real
 cases to show.
@@ -156,6 +158,17 @@ GenX, Healthray and Insta by Practo do in the same modules:
   invoice number, write-offs, reorder alerts.
 - **Lab:** sample IDs, results with reference ranges and critical flags,
   second-person verification, **printable lab report**.
+- **Radiology & imaging:** independent accession numbers and charges for each
+  procedure; conflict-safe equipment scheduling; AERB licence and QA status;
+  identity, contrast, renal, pregnancy, MRI implant and PCPNDT safety controls;
+  preserved rejected/repeat attempts and radiation dose; PACS-ready metadata;
+  immutable final/amended reports and documented critical-result communication.
+  The preview thumbnails are explicitly non-diagnostic and no DICOM pixels are
+  stored by this application.
+- **API integrations preview:** an Administration screen covering WhatsApp,
+  SMS, email, OCR, PACS/DICOMweb, RIS, HL7/FHIR, LIS, ABDM, payments, NHCX,
+  insurers/TPAs, Tally and ERP. Tests and logs are simulated, configuration
+  inputs are never persisted or transmitted, and OCR remains local Tesseract.
 - **Billing:** charges post themselves from every module; payments by method,
   discounts, refunds, and the **day-end collection** report by payment
   method, source and cashier, with a printable closing.
@@ -186,18 +199,20 @@ GenX, Healthray and Insta by Practo do in the same modules:
 
 ## A ten-minute demo
 
-| As                | Do                                                                                                  | Shows                                                                                                  |
-| ----------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Receptionist      | OPD → **Walk-in** (or Enquiry → open one → **Book appointment**)                                    | Token issued, OPD visit opened, consultation bill raised; enquiry linked to the appointment            |
-| Nurse             | OPD → _Waiting_ → **Record vitals**; open **Token display**                                         | Vitals on the visit and in the patient record; the waiting-area screen                                 |
-| Doctor            | OPD → **Start consultation** → diagnosis, **Prescribe**, **Order tests** → **Print Rx** → **Close** | Rx in the pharmacy queue, tests in the lab worklist, charges on the bill, case sheet in MRD            |
-| Pharmacist        | Pharmacy → **Dispense**; **Counter sale**; Inventory → **Receive stock**                            | FEFO draw onto the bill; an OTC bill paid at the counter; a GRN with supplier invoice                  |
-| Lab Technician    | Lab → collect → process → enter results → **Verify & release** → **Print report**                   | Abnormal/critical flags; report in the EHR and on the visit                                            |
-| Billing Executive | Billing → open the bill → **Collect**; Billing → **Day-end collection** → **Print closing**         | One bill for consultation, lab and pharmacy; the day's takings by method, source and cashier           |
-| Doctor → Billing  | Admission → **Initiate discharge** → summary; then as Billing: checklist → **Clear billing**        | Discharge locked until clearance; then bed to cleaning, final bill, discharge summary with MRD         |
-| Administrator     | Administration → **User management** → **New role** / **New login**; then sign in as it             | The new role on the sign-in screen, its landing page, "No access" everywhere else                      |
-| Receptionist      | Patient record → camera badge → **Save photo**; **Upload document**; **Download record**            | The photo across the record; the scan in Documents (view, download, retitle, remove); a multi-page PDF |
-| Any role          | Guide → **Architecture & Flows**                                                                    | The module map and workflows for that role only; administrators also see the system layers             |
+| As                   | Do                                                                                                            | Shows                                                                                                  |
+| -------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Receptionist         | OPD → **Walk-in** (or Enquiry → open one → **Book appointment**)                                              | Token issued, OPD visit opened, consultation bill raised; enquiry linked to the appointment            |
+| Nurse                | OPD → _Waiting_ → **Record vitals**; open **Token display**                                                   | Vitals on the visit and in the patient record; the waiting-area screen                                 |
+| Doctor               | OPD → **Start consultation** → diagnosis, **Prescribe**, **Order tests / imaging** → **Print Rx** → **Close** | Rx, lab and radiology worklists; charges on the bill; reports in EHR/MRD                               |
+| Radiology Technician | Radiology → schedule → safety checklist → acquire / repeat                                                    | Equipment and licence rules, dose records and a PACS-ready study for reporting                         |
+| Radiologist          | Radiology → reporting → finalise → communicate critical result                                                | Immutable report versions, targeted alerts and acknowledgement queue                                   |
+| Pharmacist           | Pharmacy → **Dispense**; **Counter sale**; Inventory → **Receive stock**                                      | FEFO draw onto the bill; an OTC bill paid at the counter; a GRN with supplier invoice                  |
+| Lab Technician       | Lab → collect → process → enter results → **Verify & release** → **Print report**                             | Abnormal/critical flags; report in the EHR and on the visit                                            |
+| Billing Executive    | Billing → open the bill → **Collect**; Billing → **Day-end collection** → **Print closing**                   | One bill for consultation, lab and pharmacy; the day's takings by method, source and cashier           |
+| Doctor → Billing     | Admission → **Initiate discharge** → summary; then as Billing: checklist → **Clear billing**                  | Discharge locked until clearance; then bed to cleaning, final bill, discharge summary with MRD         |
+| Administrator        | Administration → **User management** → **New role** / **New login**; then sign in as it                       | The new role on the sign-in screen, its landing page, "No access" everywhere else                      |
+| Receptionist         | Patient record → camera badge → **Save photo**; **Upload document**; **Download record**                      | The photo across the record; the scan in Documents (view, download, retitle, remove); a multi-page PDF |
+| Any role             | Guide → **Architecture & Flows**                                                                              | The module map and workflows for that role only; administrators also see the system layers             |
 
 ## Architecture
 

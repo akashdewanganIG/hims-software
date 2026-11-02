@@ -10,6 +10,7 @@ import { isStale, reanchor } from "./anchor";
 import { transact } from "./journal";
 import { SCHEMA_VERSION, type Database, type ID } from "./schema";
 import { generateDatabase } from "./seed";
+import { upgradeV8ToV9 } from "./upgrade";
 
 const DB_NAME = "hims-simulation";
 const STORE = "state";
@@ -176,16 +177,19 @@ export function loadDatabase(): Promise<Database> {
     if (
       stored &&
       (stored.db.meta.schemaVersion === SCHEMA_VERSION ||
-        ((stored.db.meta.schemaVersion === 6 ||
-          stored.db.meta.schemaVersion === 7) &&
-          SCHEMA_VERSION === 8))
+        stored.db.meta.schemaVersion === 6 ||
+        stored.db.meta.schemaVersion === 7 ||
+        stored.db.meta.schemaVersion === 8)
     ) {
       db = stored.db;
       userChanges = stored.userChanges ?? 0;
       if (db.meta.schemaVersion < SCHEMA_VERSION) {
-        db.alerts ??= [];
-        db.attendance ??= [];
-        db.meta.schemaVersion = SCHEMA_VERSION;
+        if (db.meta.schemaVersion === 6 || db.meta.schemaVersion === 7) {
+          db.alerts ??= [];
+          db.attendance ??= [];
+          db.meta.schemaVersion = 8;
+        }
+        if (db.meta.schemaVersion === 8) upgradeV8ToV9(db, await generate(now));
         void writeStored(db);
       }
       if (isStale(db.meta.anchoredAt, now)) {

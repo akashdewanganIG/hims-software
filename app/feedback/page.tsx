@@ -76,6 +76,7 @@ import {
 } from "@/lib/sim/schema";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
+import { readMessagingProviderLabels } from "@/lib/integrations-preview";
 
 type View = "all" | "followup" | "low" | "high";
 
@@ -93,6 +94,10 @@ export default function FeedbackPage() {
   const [departmentId, setDepartmentId] = React.useState("");
   const [openId, setOpenId] = React.useState<string | null>(null);
   const [createOpen, setCreateOpen] = React.useState(false);
+  const [messagingProviders, setMessagingProviders] = React.useState({
+    whatsapp: "WhatsApp Business Cloud",
+    sms: "MSG91 SMS",
+  });
   const {
     data: rows = [],
     isLoading,
@@ -113,7 +118,10 @@ export default function FeedbackPage() {
   const { data: departments = [] } = useDepartments();
   const selected = rows.find(r => r.id === openId) ?? null;
 
-  React.useEffect(() => setOrigin(window.location.origin), []);
+  React.useEffect(() => {
+    setOrigin(window.location.origin);
+    setMessagingProviders(readMessagingProviderLabels());
+  }, []);
 
   const markWhatsappOpened = useAction(
     "feedback.openWhatsapp",
@@ -296,7 +304,21 @@ export default function FeedbackPage() {
                 }}
               >
                 <Phone className="size-3.5" />
-                Open WhatsApp
+                WhatsApp · {messagingProviders.whatsapp}
+              </Button>
+            ) : null}
+            {row.status !== "SUBMITTED" ? (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!origin || !digits}
+                onClick={() => {
+                  window.location.href = `sms:${digits}?body=${encodeURIComponent(message)}`;
+                  toast.info("SMS composer opened; no delivery was attempted");
+                }}
+              >
+                <Phone className="size-3.5" />
+                SMS · {messagingProviders.sms}
               </Button>
             ) : null}
           </div>

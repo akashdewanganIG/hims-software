@@ -3251,6 +3251,101 @@ test("records: photos, documents, complaint and staff edits, bill lines, prescri
   h.assertShadowMatches();
 });
 
+test("radiology: order, schedule, safety, acquisition, report and acknowledgement", () => {
+  const h = new Hospital();
+  const doctor = h.login("DOCTOR");
+  const receptionist = h.login("RECEPTIONIST");
+  const technician = h.login("RADIOLOGY_TECHNICIAN");
+  const radiologist = h.login("RADIOLOGIST");
+  const admin = h.login("ADMINISTRATOR");
+  const patient = h.db.patients.find(row => row.gender === "MALE")!;
+  const procedure = h.db.radiologyProcedures.find(
+    row => row.code === "XR-CHEST"
+  )!;
+  const equipment = h.db.radiologyEquipment.find(
+    row => row.modality === procedure.modality && row.status === "ACTIVE"
+  )!;
+  const [order] = h.run(doctor, "radiology.order", {
+    patientId: patient.id,
+    procedureIds: [procedure.id],
+    priority: "URGENT",
+    clinicalIndication: "Persistent cough and fever",
+    provisionalDiagnosis: "Lower respiratory infection",
+    externalReferrer: "Test clinician",
+  });
+  h.run(receptionist, "radiology.schedule", {
+    orderId: order!.id,
+    equipmentId: equipment.id,
+    scheduledAt: h.at(14, 0, 4).toISOString(),
+  });
+  h.run(technician, "radiology.checkIn", { orderId: order!.id });
+  h.run(technician, "radiology.safety", {
+    orderId: order!.id,
+    identityVerified: true,
+    preparationConfirmed: true,
+    consentConfirmed: true,
+    allergiesReviewed: true,
+    renalFunctionReviewed: true,
+    pregnancyStatus: "NOT_APPLICABLE",
+    mriImplantScreeningComplete: true,
+    pcPndtFormComplete: false,
+    notes: "Checklist complete",
+  });
+  const study = h.run(technician, "radiology.startStudy", {
+    orderId: order!.id,
+  });
+  h.run(technician, "radiology.completeStudy", {
+    studyId: study.id,
+    accepted: true,
+    seriesCount: 2,
+    imageCount: 2,
+    doseMeasurements: [{ label: "DAP", value: 0.12, unit: "Gy·cm²" }],
+    contrastAdministered: false,
+  });
+  const report = h.run(radiologist, "radiology.saveReport", {
+    orderId: order!.id,
+    findings: "Right lower-zone airspace opacity.",
+    impression: "Right lower-lobe pneumonia.",
+    recommendations: "Urgent clinical review.",
+    criticality: "CRITICAL",
+  });
+  const communication = h.run(radiologist, "radiology.communicate", {
+    reportId: report.id,
+    recipientId: h.staffOf(doctor).id,
+    method: "PHONE",
+    outcome: "Read-back confirmed",
+  });
+  h.run(radiologist, "radiology.finaliseReport", { reportId: report.id });
+  h.run(radiologist, "radiology.amendReport", {
+    reportId: report.id,
+    findings: "Right lower-zone airspace opacity; no pleural effusion.",
+    impression: "Right lower-lobe pneumonia without effusion.",
+    recommendations: "Urgent clinical review and follow-up imaging.",
+    reason: "Clarified absence of effusion",
+  });
+  h.run(doctor, "radiology.acknowledge", { communicationId: communication.id });
+  const [cancelled] = h.run(doctor, "radiology.order", {
+    patientId: patient.id,
+    procedureIds: [procedure.id],
+    priority: "ROUTINE",
+    clinicalIndication: "Pre-operative screening",
+    provisionalDiagnosis: "Pre-operative assessment",
+    externalReferrer: "Test clinician",
+  });
+  h.run(doctor, "radiology.cancel", {
+    orderId: cancelled!.id,
+    reason: "Procedure no longer required",
+  });
+  h.run(admin, "radiology.equipmentEvent", {
+    equipmentId: equipment.id,
+    type: "QA",
+    status: "COMPLETED",
+    result: "Phantom image-quality check passed",
+  });
+  h.assertIntact();
+  h.assertShadowMatches();
+});
+
 test("documents: publish immutable public PDF and image snapshots", () => {
   const h = new Hospital();
   const admin = h.login("ADMINISTRATOR");

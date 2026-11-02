@@ -7,6 +7,7 @@ import { keepPreviousData } from "@tanstack/react-query";
 import {
   HospitalIcon,
   IdCard,
+  ImageSquare,
   LogOut,
   Menu,
   Microscope,
@@ -126,6 +127,7 @@ const KIND_SECTION: Record<RecordKind, string> = {
   invoice: "Bill",
   enquiry: "Enquiry",
   lab: "Lab order",
+  radiology: "Imaging study",
 };
 
 const KIND_ICON: Record<RecordKind, IconComponent> = {
@@ -135,6 +137,7 @@ const KIND_ICON: Record<RecordKind, IconComponent> = {
   invoice: ReceiptText,
   enquiry: Phone,
   lab: Microscope,
+  radiology: ImageSquare,
 };
 
 function useDebounced<T>(value: T, delay: number) {

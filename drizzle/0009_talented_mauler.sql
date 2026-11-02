@@ -1,0 +1,1 @@
+ALTER TABLE "radiology_reports" ADD CONSTRAINT "radiology_reports_supersedes_id_fkey" FOREIGN KEY ("supersedes_id") REFERENCES "public"."radiology_reports"("id") ON DELETE no action ON UPDATE no action DEFERRABLE INITIALLY DEFERRED;

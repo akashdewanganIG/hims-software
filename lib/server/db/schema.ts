@@ -98,6 +98,8 @@ export const staffRoleEnum = pgEnum("StaffRole", [
   "NURSE",
   "PHARMACIST",
   "LAB_TECHNICIAN",
+  "RADIOLOGIST",
+  "RADIOLOGY_TECHNICIAN",
   "BILLING_EXECUTIVE",
   "MRD_STAFF",
   "OPERATIONS_MANAGER",
@@ -330,6 +332,51 @@ export const resultFlagEnum = pgEnum("ResultFlag", [
   "ABNORMAL",
 ]);
 
+export const radiologyModalityEnum = pgEnum("RadiologyModality", [
+  "XRAY",
+  "CT",
+  "MRI",
+  "ULTRASOUND",
+  "MAMMOGRAPHY",
+  "FLUOROSCOPY",
+  "INTERVENTIONAL",
+  "DEXA",
+]);
+export const radiologyPriorityEnum = pgEnum("RadiologyPriority", [
+  "ROUTINE",
+  "URGENT",
+  "STAT",
+]);
+export const radiologyStatusEnum = pgEnum("RadiologyStatus", [
+  "ORDERED",
+  "SCHEDULED",
+  "CHECKED_IN",
+  "READY",
+  "IN_PROGRESS",
+  "ACQUIRED",
+  "REPORT_DRAFT",
+  "PRELIMINARY",
+  "FINAL",
+  "AMENDED",
+  "CANCELLED",
+]);
+export const radiologyEquipmentStatusEnum = pgEnum("RadiologyEquipmentStatus", [
+  "ACTIVE",
+  "MAINTENANCE",
+  "OUT_OF_SERVICE",
+]);
+export const radiologyReportStatusEnum = pgEnum("RadiologyReportStatus", [
+  "DRAFT",
+  "PRELIMINARY",
+  "FINAL",
+  "AMENDED",
+]);
+export const radiologyCriticalityEnum = pgEnum("RadiologyCriticality", [
+  "ROUTINE",
+  "SIGNIFICANT",
+  "CRITICAL",
+]);
+
 export const invoiceStatusEnum = pgEnum("InvoiceStatus", [
   "DRAFT",
   "PENDING",
@@ -343,6 +390,7 @@ export const chargeCategoryEnum = pgEnum("ChargeCategory", [
   "REGISTRATION",
   "CONSULTATION",
   "LAB",
+  "RADIOLOGY",
   "PHARMACY",
   "ROOM",
   "NURSING",
@@ -354,6 +402,7 @@ export const chargeSourceEnum = pgEnum("ChargeSource", [
   "APPOINTMENT",
   "REGISTRATION",
   "LAB_ORDER_ITEM",
+  "RADIOLOGY_ORDER",
   "PHARMACY_TXN",
   "BED_ASSIGNMENT",
   "ADMISSION",
@@ -396,6 +445,7 @@ export const documentKindEnum = pgEnum("DocumentKind", [
   "CONSENT_FORM",
   "DISCHARGE_SUMMARY",
   "LAB_REPORT",
+  "RADIOLOGY_REPORT",
   "REFERRAL_LETTER",
   "EXTERNAL_REPORT",
   "ID_PROOF",
@@ -466,6 +516,7 @@ export const feedbackCategoryEnum = pgEnum("FeedbackCategory", [
   "FRONT_DESK",
   "PHARMACY",
   "LAB",
+  "RADIOLOGY",
 ]);
 
 export const feedbackChannelEnum = pgEnum("FeedbackChannel", [
@@ -520,6 +571,7 @@ export const entityTypeEnum = pgEnum("EntityType", [
   "prescription",
   "pharmacy",
   "lab",
+  "radiology",
   "invoice",
   "mrd",
   "complaint",
@@ -1568,6 +1620,326 @@ export const labResults = pgTable(
     foreignKey({
       name: "lab_results_entered_by_id_fkey",
       columns: [t.enteredById],
+      foreignColumns: [staff.id],
+    }),
+  ]
+);
+
+// ------------------------------------------------------------------
+// Radiology & imaging
+// ------------------------------------------------------------------
+
+export const radiologyProcedures = pgTable(
+  "radiology_procedures",
+  {
+    id: text("id").primaryKey(),
+    seq: serial("seq"),
+    code: text("code").notNull(),
+    name: text("name").notNull(),
+    modality: radiologyModalityEnum("modality").notNull(),
+    bodyPart: text("body_part").notNull(),
+    price: money("price").notNull(),
+    durationMinutes: integer("duration_minutes").notNull(),
+    turnaroundHours: integer("turnaround_hours").notNull(),
+    preparation: text("preparation").notNull(),
+    requiresContrast: boolean("requires_contrast").notNull(),
+    requiresConsent: boolean("requires_consent").notNull(),
+    requiresPregnancyScreening: boolean(
+      "requires_pregnancy_screening"
+    ).notNull(),
+    requiresPcPndt: boolean("requires_pc_pndt").notNull(),
+    recordsRadiationDose: boolean("records_radiation_dose").notNull(),
+    active: boolean("active").notNull(),
+  },
+  t => [uniqueIndex("radiology_procedures_code_key").on(t.code)]
+);
+
+export const radiologyEquipment = pgTable(
+  "radiology_equipment",
+  {
+    id: text("id").primaryKey(),
+    seq: serial("seq"),
+    code: text("code").notNull(),
+    name: text("name").notNull(),
+    modality: radiologyModalityEnum("modality").notNull(),
+    room: text("room").notNull(),
+    manufacturer: text("manufacturer").notNull(),
+    model: text("model").notNull(),
+    serialNumber: text("serial_number").notNull(),
+    status: radiologyEquipmentStatusEnum("status").notNull(),
+    portable: boolean("portable").notNull(),
+    aerbLicenceNumber: text("aerb_licence_number"),
+    aerbLicenceValidUntil: day("aerb_licence_valid_until"),
+    lastQaAt: day("last_qa_at"),
+    nextQaDue: day("next_qa_due"),
+    createdAt: instant("created_at").notNull(),
+    updatedAt: instant("updated_at").notNull(),
+  },
+  t => [
+    uniqueIndex("radiology_equipment_code_key").on(t.code),
+    uniqueIndex("radiology_equipment_serial_number_key").on(t.serialNumber),
+  ]
+);
+
+export const radiologyOrders = pgTable(
+  "radiology_orders",
+  {
+    id: text("id").primaryKey(),
+    seq: serial("seq"),
+    accessionNumber: text("accession_number").notNull(),
+    batchId: text("batch_id"),
+    patientId: text("patient_id").notNull(),
+    encounterId: text("encounter_id"),
+    admissionId: text("admission_id"),
+    source: text("source").notNull(),
+    externalReferrer: text("external_referrer"),
+    procedureId: text("procedure_id").notNull(),
+    orderedById: text("ordered_by_id").notNull(),
+    orderedAt: instant("ordered_at").notNull(),
+    priority: radiologyPriorityEnum("priority").notNull(),
+    clinicalIndication: text("clinical_indication").notNull(),
+    provisionalDiagnosis: text("provisional_diagnosis").notNull(),
+    status: radiologyStatusEnum("status").notNull(),
+    scheduledAt: instant("scheduled_at"),
+    equipmentId: text("equipment_id"),
+    checkedInAt: instant("checked_in_at"),
+    readyAt: instant("ready_at"),
+    cancelledAt: instant("cancelled_at"),
+    cancelReason: text("cancel_reason"),
+    createdAt: instant("created_at").notNull(),
+    updatedAt: instant("updated_at").notNull(),
+  },
+  t => [
+    uniqueIndex("radiology_orders_accession_number_key").on(t.accessionNumber),
+    index("radiology_orders_patient_id_idx").on(t.patientId),
+    index("radiology_orders_status_idx").on(t.status),
+    index("radiology_orders_scheduled_at_idx").on(t.scheduledAt),
+    foreignKey({
+      name: "radiology_orders_patient_id_fkey",
+      columns: [t.patientId],
+      foreignColumns: [patients.id],
+    }),
+    foreignKey({
+      name: "radiology_orders_encounter_id_fkey",
+      columns: [t.encounterId],
+      foreignColumns: [encounters.id],
+    }),
+    foreignKey({
+      name: "radiology_orders_admission_id_fkey",
+      columns: [t.admissionId],
+      foreignColumns: [admissions.id],
+    }),
+    foreignKey({
+      name: "radiology_orders_procedure_id_fkey",
+      columns: [t.procedureId],
+      foreignColumns: [radiologyProcedures.id],
+    }),
+    foreignKey({
+      name: "radiology_orders_ordered_by_id_fkey",
+      columns: [t.orderedById],
+      foreignColumns: [staff.id],
+    }),
+    foreignKey({
+      name: "radiology_orders_equipment_id_fkey",
+      columns: [t.equipmentId],
+      foreignColumns: [radiologyEquipment.id],
+    }),
+  ]
+);
+
+export const radiologySafetyAssessments = pgTable(
+  "radiology_safety_assessments",
+  {
+    id: text("id").primaryKey(),
+    seq: serial("seq"),
+    orderId: text("order_id").notNull(),
+    identityVerified: boolean("identity_verified").notNull(),
+    preparationConfirmed: boolean("preparation_confirmed").notNull(),
+    consentConfirmed: boolean("consent_confirmed").notNull(),
+    allergiesReviewed: boolean("allergies_reviewed").notNull(),
+    renalFunctionReviewed: boolean("renal_function_reviewed").notNull(),
+    pregnancyStatus: text("pregnancy_status").notNull(),
+    mriImplantScreeningComplete: boolean(
+      "mri_implant_screening_complete"
+    ).notNull(),
+    pcPndtFormComplete: boolean("pc_pndt_form_complete").notNull(),
+    pcPndtIndication: text("pc_pndt_indication"),
+    lmp: day("lmp"),
+    contrastAgent: text("contrast_agent"),
+    contrastDose: text("contrast_dose"),
+    contrastLot: text("contrast_lot"),
+    notes: text("notes").notNull(),
+    completedById: text("completed_by_id").notNull(),
+    completedAt: instant("completed_at").notNull(),
+    createdAt: instant("created_at").notNull(),
+    updatedAt: instant("updated_at").notNull(),
+  },
+  t => [
+    uniqueIndex("radiology_safety_assessments_order_id_key").on(t.orderId),
+    foreignKey({
+      name: "radiology_safety_assessments_order_id_fkey",
+      columns: [t.orderId],
+      foreignColumns: [radiologyOrders.id],
+    }),
+    foreignKey({
+      name: "radiology_safety_assessments_completed_by_id_fkey",
+      columns: [t.completedById],
+      foreignColumns: [staff.id],
+    }),
+  ]
+);
+
+export const radiologyStudies = pgTable(
+  "radiology_studies",
+  {
+    id: text("id").primaryKey(),
+    seq: serial("seq"),
+    orderId: text("order_id").notNull(),
+    attempt: integer("attempt").notNull(),
+    studyInstanceUid: text("study_instance_uid").notNull(),
+    equipmentId: text("equipment_id").notNull(),
+    performedById: text("performed_by_id").notNull(),
+    startedAt: instant("started_at").notNull(),
+    completedAt: instant("completed_at"),
+    accepted: boolean("accepted").notNull(),
+    rejectionReason: text("rejection_reason"),
+    seriesCount: integer("series_count").notNull(),
+    imageCount: integer("image_count").notNull(),
+    doseMeasurements: jsonb("dose_measurements").notNull(),
+    contrastAdministered: boolean("contrast_administered").notNull(),
+    contrastReaction: text("contrast_reaction"),
+    pacsStatus: text("pacs_status").notNull(),
+    pacsStudyUrl: text("pacs_study_url"),
+    createdAt: instant("created_at").notNull(),
+    updatedAt: instant("updated_at").notNull(),
+  },
+  t => [
+    uniqueIndex("radiology_studies_uid_key").on(t.studyInstanceUid),
+    uniqueIndex("radiology_studies_order_attempt_key").on(t.orderId, t.attempt),
+    foreignKey({
+      name: "radiology_studies_order_id_fkey",
+      columns: [t.orderId],
+      foreignColumns: [radiologyOrders.id],
+    }),
+    foreignKey({
+      name: "radiology_studies_equipment_id_fkey",
+      columns: [t.equipmentId],
+      foreignColumns: [radiologyEquipment.id],
+    }),
+    foreignKey({
+      name: "radiology_studies_performed_by_id_fkey",
+      columns: [t.performedById],
+      foreignColumns: [staff.id],
+    }),
+  ]
+);
+
+export const radiologyReports = pgTable(
+  "radiology_reports",
+  {
+    id: text("id").primaryKey(),
+    seq: serial("seq"),
+    orderId: text("order_id").notNull(),
+    studyId: text("study_id").notNull(),
+    version: integer("version").notNull(),
+    status: radiologyReportStatusEnum("status").notNull(),
+    findings: text("findings").notNull(),
+    impression: text("impression").notNull(),
+    recommendations: text("recommendations").notNull(),
+    criticality: radiologyCriticalityEnum("criticality").notNull(),
+    radiologistId: text("radiologist_id").notNull(),
+    createdAt: instant("created_at").notNull(),
+    finalisedAt: instant("finalised_at"),
+    supersedesId: text("supersedes_id"),
+  },
+  t => [
+    uniqueIndex("radiology_reports_order_version_key").on(t.orderId, t.version),
+    foreignKey({
+      name: "radiology_reports_order_id_fkey",
+      columns: [t.orderId],
+      foreignColumns: [radiologyOrders.id],
+    }),
+    foreignKey({
+      name: "radiology_reports_study_id_fkey",
+      columns: [t.studyId],
+      foreignColumns: [radiologyStudies.id],
+    }),
+    foreignKey({
+      name: "radiology_reports_radiologist_id_fkey",
+      columns: [t.radiologistId],
+      foreignColumns: [staff.id],
+    }),
+    foreignKey({
+      name: "radiology_reports_supersedes_id_fkey",
+      columns: [t.supersedesId],
+      foreignColumns: [t.id],
+    }),
+  ]
+);
+
+export const radiologyCommunications = pgTable(
+  "radiology_communications",
+  {
+    id: text("id").primaryKey(),
+    seq: serial("seq"),
+    reportId: text("report_id").notNull(),
+    recipientId: text("recipient_id").notNull(),
+    method: text("method").notNull(),
+    outcome: text("outcome").notNull(),
+    communicatedById: text("communicated_by_id").notNull(),
+    communicatedAt: instant("communicated_at").notNull(),
+    acknowledgedById: text("acknowledged_by_id"),
+    acknowledgedAt: instant("acknowledged_at"),
+    notes: text("notes").notNull(),
+  },
+  t => [
+    index("radiology_communications_report_id_idx").on(t.reportId),
+    foreignKey({
+      name: "radiology_communications_report_id_fkey",
+      columns: [t.reportId],
+      foreignColumns: [radiologyReports.id],
+    }),
+    foreignKey({
+      name: "radiology_communications_recipient_id_fkey",
+      columns: [t.recipientId],
+      foreignColumns: [staff.id],
+    }),
+    foreignKey({
+      name: "radiology_communications_communicated_by_id_fkey",
+      columns: [t.communicatedById],
+      foreignColumns: [staff.id],
+    }),
+    foreignKey({
+      name: "radiology_communications_acknowledged_by_id_fkey",
+      columns: [t.acknowledgedById],
+      foreignColumns: [staff.id],
+    }),
+  ]
+);
+
+export const radiologyEquipmentEvents = pgTable(
+  "radiology_equipment_events",
+  {
+    id: text("id").primaryKey(),
+    seq: serial("seq"),
+    equipmentId: text("equipment_id").notNull(),
+    type: text("type").notNull(),
+    status: text("status").notNull(),
+    scheduledAt: instant("scheduled_at"),
+    completedAt: instant("completed_at"),
+    recordedById: text("recorded_by_id").notNull(),
+    result: text("result").notNull(),
+  },
+  t => [
+    index("radiology_equipment_events_equipment_id_idx").on(t.equipmentId),
+    foreignKey({
+      name: "radiology_equipment_events_equipment_id_fkey",
+      columns: [t.equipmentId],
+      foreignColumns: [radiologyEquipment.id],
+    }),
+    foreignKey({
+      name: "radiology_equipment_events_recorded_by_id_fkey",
+      columns: [t.recordedById],
       foreignColumns: [staff.id],
     }),
   ]

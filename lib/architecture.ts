@@ -213,6 +213,45 @@ export const ARCH_MODULES: ArchModule[] = [
     owns: ["Lab orders", "Results"],
   },
   {
+    module: "radiology",
+    area: "services",
+    label: "Radiology & imaging",
+    description:
+      "Imaging orders through scheduling, safety checks, acquisition attempts, immutable reports and critical-result acknowledgement.",
+    pages: [
+      {
+        label: "Radiology worklist",
+        route: "/radiology",
+        description: "Orders by acquisition and reporting stage.",
+      },
+      {
+        label: "Schedule",
+        route: "/radiology/schedule",
+        description:
+          "Modality-specific equipment schedule and conflict checks.",
+      },
+      {
+        label: "Equipment & QA",
+        route: "/radiology/equipment",
+        description:
+          "AERB validity, QA, calibration, maintenance and downtime.",
+      },
+      {
+        label: "Study workspace",
+        description:
+          "Safety, acquisition attempts, PACS metadata and reporting.",
+      },
+    ],
+    owns: [
+      "Imaging procedures",
+      "Equipment",
+      "Radiology orders",
+      "Studies",
+      "Report versions",
+      "Critical communications",
+    ],
+  },
+  {
     module: "beds",
     area: "operations",
     label: "Bed management",
@@ -388,6 +427,22 @@ export const ARCH_MODULES: ArchModule[] = [
     ],
     owns: ["Roles", "Logins"],
   },
+  {
+    module: "integrations",
+    area: "platform",
+    label: "API integrations preview",
+    description:
+      "A safe, interactive preview of messaging, OCR, clinical, ABDM, payment, insurance and accounting providers.",
+    pages: [
+      {
+        label: "API integrations",
+        route: "/integrations",
+        description:
+          "Simulated connection health, masked configuration and primary/fallback routing.",
+      },
+    ],
+    owns: ["Versioned preview state", "Simulated activity logs"],
+  },
 ];
 
 export type RelationKind = "handoff" | "charge" | "shared" | "record";
@@ -450,6 +505,7 @@ export const ARCH_RELATIONS: ArchRelation[] = [
     kind: "handoff",
   },
   { from: "opd", to: "lab", label: "Investigation orders", kind: "handoff" },
+  { from: "opd", to: "radiology", label: "Imaging orders", kind: "handoff" },
   { from: "opd", to: "ipd", label: "Admission advised", kind: "handoff" },
   {
     from: "opd",
@@ -483,6 +539,12 @@ export const ARCH_RELATIONS: ArchRelation[] = [
   },
   {
     from: "ipd",
+    to: "radiology",
+    label: "Ward imaging orders",
+    kind: "handoff",
+  },
+  {
+    from: "ipd",
     to: "billing",
     label: "Admission, room, nursing; clearance before discharge",
     kind: "charge",
@@ -510,6 +572,18 @@ export const ARCH_RELATIONS: ArchRelation[] = [
     to: "billing",
     label: "Test charges; withdrawn on cancellation",
     kind: "charge",
+  },
+  {
+    from: "radiology",
+    to: "billing",
+    label: "Imaging charges; withdrawn before acquisition cancellation",
+    kind: "charge",
+  },
+  {
+    from: "radiology",
+    to: "ehr",
+    label: "Final reports and studies in the patient record",
+    kind: "record",
   },
   {
     from: "lab",
@@ -1357,6 +1431,100 @@ export const USER_FLOWS: UserFlow[] = [
         label: "Rosters drive OPD slots and on-duty counts",
         kind: "end",
         module: "opd",
+      },
+    ],
+  },
+  {
+    id: "radiology",
+    title: "Radiology: order to acknowledged report",
+    summary:
+      "Each procedure receives an accession and charge, then passes scheduling, safety, acquisition, reporting and critical communication controls.",
+    category: "Pharmacy & lab",
+    steps: [
+      {
+        id: "r1",
+        label: "Imaging ordered from OPD, IPD or an external referral",
+        kind: "start",
+        module: "radiology",
+        action: "radiology.order",
+        route: "/radiology",
+      },
+      {
+        id: "r2",
+        label: "Schedule matching, available equipment without overlap",
+        kind: "action",
+        module: "radiology",
+        action: "radiology.schedule",
+        route: "/radiology/schedule",
+      },
+      {
+        id: "r3",
+        label:
+          "Check identity, preparation, contrast, pregnancy, MRI and PCPNDT safety",
+        kind: "action",
+        module: "radiology",
+        action: "radiology.perform",
+      },
+      {
+        id: "r4",
+        label: "Acquire study; preserve dose, rejected and repeat attempts",
+        kind: "action",
+        module: "radiology",
+        action: "radiology.perform",
+      },
+      {
+        id: "r5",
+        label: "Radiologist signs immutable final or amended report",
+        kind: "action",
+        module: "radiology",
+        action: "radiology.report",
+      },
+      {
+        id: "r6",
+        label: "Critical finding communicated and acknowledged",
+        kind: "action",
+        module: "radiology",
+        action: "radiology.acknowledge",
+      },
+      {
+        id: "r7",
+        label: "Report appears in EHR and MRD",
+        kind: "end",
+        module: "ehr",
+      },
+    ],
+  },
+  {
+    id: "integrations-preview",
+    title: "API integrations preview",
+    summary:
+      "Administrators can explore provider configuration, routing and failure states without storing credentials or contacting providers.",
+    category: "Administration",
+    steps: [
+      {
+        id: "i1",
+        label: "Choose a provider and environment",
+        kind: "start",
+        module: "integrations",
+        route: "/integrations",
+      },
+      {
+        id: "i2",
+        label: "Enter ephemeral configuration; values are discarded",
+        kind: "action",
+        module: "integrations",
+      },
+      {
+        id: "i3",
+        label: "Run a simulated test with success, timeout and retry states",
+        kind: "action",
+        module: "integrations",
+      },
+      {
+        id: "i4",
+        label: "Persist only masked flags, routing choices and demo logs",
+        kind: "end",
+        module: "integrations",
       },
     ],
   },

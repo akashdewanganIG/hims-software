@@ -1,13 +1,17 @@
 name: CI
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
   pull_request:
 
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
 
 env:
   DATABASE_URL: postgresql://postgres:password@localhost:5433/hims_simulation
@@ -23,17 +27,32 @@ jobs:
       DATABASE_URL: ""
       DIRECT_URL: ""
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js with npm cache
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npm run check-types
-      - run: npm run lint
-      - run: npm run format:check
-      - run: npm test
-      - run: npm run verify:sim
+      - name: Restore Next.js incremental build cache
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('app/**/*.[jt]s', 'app/**/*.[jt]sx', 'components/**/*.[jt]s', 'components/**/*.[jt]sx', 'features/**/*.[jt]s', 'features/**/*.[jt]sx', 'lib/**/*.[jt]s', 'lib/**/*.[jt]sx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-
+      - name: Install dependencies
+        run: npm ci
+      - name: Check TypeScript
+        run: npm run check-types
+      - name: Lint source
+        run: npm run lint
+      - name: Check formatting
+        run: npm run format:check
+      - name: Run unit and integration tests
+        run: npm test
+      - name: Verify deterministic simulation
+        run: npm run verify:sim
       - name: Migrations match lib/server/db/schema.ts
         run: |
           npx drizzle-kit check
@@ -43,7 +62,17 @@ jobs:
             echo "Schema changed without a migration: run npm run db:generate and commit ./drizzle"
             exit 1
           fi
-      - run: npm run build
+      - name: Build production application
+        run: npm run build
+      - name: Upload build diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checks-build-diagnostics
+          path: |
+            .next/trace
+            .next/diagnostics
+          if-no-files-found: ignore
 
   database:
     name: PostgreSQL
@@ -61,16 +90,23 @@ jobs:
           --health-cmd "pg_isready -U postgres -d hims_simulation"
           --health-interval 5s --health-timeout 5s --health-retries 12
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js with npm cache
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npm run db:migrate
-      - run: npm run db:seed
-      - run: npm run db:verify
-      - run: npm run test:db
+      - name: Install dependencies
+        run: npm ci
+      - name: Apply PostgreSQL migrations
+        run: npm run db:migrate
+      - name: Seed PostgreSQL
+        run: npm run db:seed
+      - name: Verify PostgreSQL dataset
+        run: npm run db:verify
+      - name: Run PostgreSQL operation suite
+        run: npm run test:db
       - name: The same suite through Neon's serverless driver
         run: npm run test:db:neon
 
@@ -94,14 +130,26 @@ jobs:
       E2E_BROWSER: chrome
       E2E_BASE_URL: http://localhost:3002
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js with npm cache
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npm run db:migrate
-      - run: npm run build
+      - name: Restore Next.js incremental build cache
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-nextjs-e2e-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('app/**/*.[jt]s', 'app/**/*.[jt]sx', 'components/**/*.[jt]s', 'components/**/*.[jt]sx', 'features/**/*.[jt]s', 'features/**/*.[jt]sx', 'lib/**/*.[jt]s', 'lib/**/*.[jt]sx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-e2e-${{ hashFiles('**/package-lock.json') }}-
+      - name: Install dependencies
+        run: npm ci
+      - name: Apply PostgreSQL migrations
+        run: npm run db:migrate
+      - name: Build production application
+        run: npm run build
       - name: Start the app
         run: |
           npm start > server.log 2>&1 &
@@ -111,8 +159,10 @@ jobs:
           done
           cat server.log
           exit 1
-      - run: npm run e2e
-      - if: always()
+      - name: Run end-to-end role journeys
+        run: npm run e2e
+      - name: Upload end-to-end logs and screenshots
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: e2e-screenshots

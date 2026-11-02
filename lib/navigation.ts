@@ -9,6 +9,7 @@ import {
   FolderOpen,
   HospitalIcon,
   IdCard,
+  ImageSquare,
   LayoutGrid,
   ListChecks,
   Microscope,
@@ -24,6 +25,7 @@ import {
   UserCheck,
   UsersThree,
   Wallet,
+  Wrench,
   type IconComponent,
 } from "@/components/icons";
 
@@ -150,6 +152,36 @@ export const NAVIGATION: NavGroup[] = [
         module: "lab",
         keywords: ["sample", "test", "result", "report", "pathology"],
       },
+      {
+        label: "Radiology & Imaging",
+        href: "/radiology",
+        icon: ImageSquare,
+        module: "radiology",
+        children: [
+          {
+            label: "Imaging Worklist",
+            href: "/radiology",
+            icon: ImageSquare,
+            module: "radiology",
+            exact: true,
+            keywords: ["RIS", "PACS", "study", "report", "accession"],
+          },
+          {
+            label: "Imaging Schedule",
+            href: "/radiology/schedule",
+            icon: CalendarDays,
+            module: "radiology",
+            keywords: ["modality", "appointment", "room"],
+          },
+          {
+            label: "Equipment & QA",
+            href: "/radiology/equipment",
+            icon: Wrench,
+            module: "radiology",
+            keywords: ["AERB", "maintenance", "quality", "licence"],
+          },
+        ],
+      },
     ],
   },
   {
@@ -262,6 +294,13 @@ export const NAVIGATION: NavGroup[] = [
         module: "admin",
         keywords: ["users", "logins", "roles", "permissions", "access"],
       },
+      {
+        label: "API Integrations",
+        href: "/integrations",
+        icon: Wrench,
+        module: "integrations",
+        keywords: ["WhatsApp", "SMS", "OCR", "ABDM", "PACS", "API"],
+      },
     ],
   },
   {
@@ -305,6 +344,7 @@ const ROUTE_MODULES: Array<[string, Module]> = [
   ["/patients", "ehr"],
   ["/pharmacy", "pharmacy"],
   ["/lab", "lab"],
+  ["/radiology", "radiology"],
   ["/beds", "beds"],
   ["/alerts", "alerts"],
   ["/operations", "operations"],
@@ -315,6 +355,7 @@ const ROUTE_MODULES: Array<[string, Module]> = [
   ["/feedback", "feedback"],
   ["/analytics", "analytics"],
   ["/admin", "admin"],
+  ["/integrations", "integrations"],
   ["/architecture", "dashboard"],
 ];
 

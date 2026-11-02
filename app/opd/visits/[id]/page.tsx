@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Flask,
   Heartbeat,
+  ImageSquare,
   Pill,
   Printer,
   Stethoscope,
@@ -45,6 +46,7 @@ import {
 } from "@/features/opd/consultation-form";
 import { LabOrderForm } from "@/features/opd/lab-order-form";
 import { PrescriptionBuilder } from "@/features/opd/prescription-builder";
+import { RadiologyOrderDialog } from "@/features/radiology/order-dialog";
 import { VitalsDialog } from "@/features/opd/vitals-dialog";
 import { useAction } from "@/lib/api/client";
 import type { ConsultationInput } from "@/lib/domain/opd";
@@ -74,6 +76,7 @@ export default function VisitPage() {
   const [admitOpen, setAdmitOpen] = React.useState(false);
   const [showRx, setShowRx] = React.useState(false);
   const [showLab, setShowLab] = React.useState(false);
+  const [imagingOpen, setImagingOpen] = React.useState(false);
 
   React.useEffect(() => {
     if (visit && !dirty) setDraft(toConsultationInput(visit.encounter));
@@ -320,15 +323,29 @@ export default function VisitPage() {
             title="Investigations"
             description="Orders appear in Lab Services; verified results flow back here and into the patient record."
             actions={
-              editable && !showLab ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setShowLab(true)}
-                >
-                  <Flask className="size-4" />
-                  Order tests
-                </Button>
+              editable ? (
+                <>
+                  {!showLab ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setShowLab(true)}
+                    >
+                      <Flask className="size-4" />
+                      Order tests
+                    </Button>
+                  ) : null}
+                  {can("radiology.order") ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setImagingOpen(true)}
+                    >
+                      <ImageSquare className="size-4" />
+                      Order imaging
+                    </Button>
+                  ) : null}
+                </>
               ) : null
             }
           >
@@ -513,6 +530,19 @@ export default function VisitPage() {
           sourceEncounterId: encounter.id,
           reason: draft.chiefComplaint,
           diagnosis: draft.diagnoses[0]?.description ?? "",
+        }}
+      />
+      <RadiologyOrderDialog
+        open={imagingOpen}
+        onOpenChange={setImagingOpen}
+        encounterId={encounter.id}
+        initialPatient={{
+          id: patient.id,
+          uhid: patient.uhid,
+          name: `${patient.firstName} ${patient.lastName}`,
+          phone: patient.phone,
+          age: patient.age,
+          gender: patient.gender,
         }}
       />
     </PageShell>

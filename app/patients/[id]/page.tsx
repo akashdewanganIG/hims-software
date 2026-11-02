@@ -10,6 +10,7 @@ import {
   Eye,
   FileText,
   HospitalIcon,
+  ImageSquare,
   Trash2,
   Upload,
 } from "@/components/icons";
@@ -72,6 +73,7 @@ type Tab =
   | "diagnoses"
   | "medication"
   | "labs"
+  | "imaging"
   | "billing"
   | "documents"
   | "notes";
@@ -164,6 +166,11 @@ export default function PatientRecordPage() {
       value: "labs" as const,
       label: "Lab results",
       count: data.labOrders.length,
+    },
+    {
+      value: "imaging" as const,
+      label: "Imaging",
+      count: data.imaging.length,
     },
     { value: "billing" as const, label: "Billing", count: data.bills.length },
     {
@@ -274,6 +281,15 @@ export default function PatientRecordPage() {
         />
         <MiniStat label="Admissions" value={data.admissions.length} />
         <MiniStat label="Lab reports" value={verifiedLabs.length} />
+        <MiniStat
+          label="Imaging reports"
+          value={
+            data.imaging.filter(
+              row =>
+                row.reportStatus === "FINAL" || row.reportStatus === "AMENDED"
+            ).length
+          }
+        />
         <MiniStat label="Prescriptions" value={data.prescriptions.length} />
         <MiniStat
           label="Outstanding"
@@ -330,6 +346,66 @@ export default function PatientRecordPage() {
               {!data.labOrders.length ? (
                 <p className="py-4 text-center text-sm text-muted-foreground">
                   No lab orders.
+                </p>
+              ) : null}
+            </div>
+          </Panel>
+        ) : null}
+        {tab === "imaging" ? (
+          <Panel
+            title="Imaging studies and reports"
+            description="Radiology orders, acquisition state and immutable final or amended reports."
+          >
+            <div className="space-y-3">
+              {data.imaging.map(study => (
+                <article
+                  key={study.id}
+                  className="rounded-xl border bg-surface p-4"
+                >
+                  <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+                    <div className="flex min-w-0 gap-3">
+                      <span className="rounded-lg bg-secondary p-2">
+                        <ImageSquare className="size-5" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="font-semibold">{study.procedure}</p>
+                        <p className="font-mono text-xs text-muted-foreground">
+                          {study.accessionNumber} · {humanize(study.modality)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <StatusBadge status={study.status} />
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/radiology/studies/${study.id}`}>
+                          Open study
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+                  {study.impression ? (
+                    <div className="mt-3 rounded-lg bg-secondary/50 p-3">
+                      <p className="text-xs font-semibold uppercase text-muted-foreground">
+                        Impression
+                      </p>
+                      <p className="mt-1 text-sm">{study.impression}</p>
+                    </div>
+                  ) : (
+                    <p className="mt-3 text-sm text-muted-foreground">
+                      Report not finalised.
+                    </p>
+                  )}
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Ordered {formatDateTime(study.orderedAt)}
+                    {study.finalisedAt
+                      ? ` · Reported ${formatDateTime(study.finalisedAt)}`
+                      : ""}
+                  </p>
+                </article>
+              ))}
+              {!data.imaging.length ? (
+                <p className="py-4 text-center text-sm text-muted-foreground">
+                  No imaging orders.
                 </p>
               ) : null}
             </div>

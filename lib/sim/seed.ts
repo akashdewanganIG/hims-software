@@ -16,6 +16,7 @@ import * as opd from "../domain/opd";
 import * as patients from "../domain/patients";
 import * as pharmacy from "../domain/pharmacy";
 import * as quality from "../domain/quality";
+import * as radiology from "../domain/radiology";
 import { doctorAvailability } from "../domain/wfm";
 import { DEFAULT_ROLES, normaliseGrants } from "../rbac";
 import {
@@ -283,6 +284,8 @@ export function generateDatabase(
   const receptionists = staffOf("RECEPTIONIST");
   const pharmacists = staffOf("PHARMACIST");
   const labTechs = staffOf("LAB_TECHNICIAN");
+  const radiologists = staffOf("RADIOLOGIST");
+  const radiologyTechs = staffOf("RADIOLOGY_TECHNICIAN");
   const billers = staffOf("BILLING_EXECUTIVE");
   const mrdStaff = staffOf("MRD_STAFF");
   const opsManagers = staffOf("OPERATIONS_MANAGER");
@@ -363,6 +366,242 @@ export function generateDatabase(
     });
   });
   const testByCode = new Map(db.labTests.map(t => [t.code, t]));
+
+  const radiologyProcedures = [
+    {
+      code: "XR-CHEST",
+      name: "Chest X-ray PA",
+      modality: "XRAY" as const,
+      bodyPart: "Chest",
+      price: 650,
+      durationMinutes: 15,
+      turnaroundHours: 4,
+      preparation: "Remove metallic objects from the chest and neck.",
+      requiresContrast: false,
+      requiresConsent: false,
+      requiresPregnancyScreening: true,
+      requiresPcPndt: false,
+      recordsRadiationDose: true,
+    },
+    {
+      code: "CT-BRAIN",
+      name: "CT Brain with contrast",
+      modality: "CT" as const,
+      bodyPart: "Brain",
+      price: 4200,
+      durationMinutes: 30,
+      turnaroundHours: 6,
+      preparation:
+        "Four-hour fast; review renal function and contrast allergy.",
+      requiresContrast: true,
+      requiresConsent: true,
+      requiresPregnancyScreening: true,
+      requiresPcPndt: false,
+      recordsRadiationDose: true,
+    },
+    {
+      code: "MR-SPINE",
+      name: "MRI Lumbar Spine",
+      modality: "MRI" as const,
+      bodyPart: "Lumbar spine",
+      price: 6500,
+      durationMinutes: 45,
+      turnaroundHours: 12,
+      preparation: "Complete implant and metal safety screening.",
+      requiresContrast: false,
+      requiresConsent: true,
+      requiresPregnancyScreening: false,
+      requiresPcPndt: false,
+      recordsRadiationDose: false,
+    },
+    {
+      code: "US-ABD",
+      name: "Ultrasound Abdomen",
+      modality: "ULTRASOUND" as const,
+      bodyPart: "Abdomen",
+      price: 1400,
+      durationMinutes: 25,
+      turnaroundHours: 4,
+      preparation: "Fast for six hours unless clinically contraindicated.",
+      requiresContrast: false,
+      requiresConsent: false,
+      requiresPregnancyScreening: false,
+      requiresPcPndt: false,
+      recordsRadiationDose: false,
+    },
+    {
+      code: "US-OBS",
+      name: "Obstetric Ultrasound",
+      modality: "ULTRASOUND" as const,
+      bodyPart: "Obstetric",
+      price: 1800,
+      durationMinutes: 30,
+      turnaroundHours: 4,
+      preparation: "Carry referral note and complete PCPNDT Form F.",
+      requiresContrast: false,
+      requiresConsent: true,
+      requiresPregnancyScreening: false,
+      requiresPcPndt: true,
+      recordsRadiationDose: false,
+    },
+    {
+      code: "MG-BILAT",
+      name: "Bilateral Mammography",
+      modality: "MAMMOGRAPHY" as const,
+      bodyPart: "Breast",
+      price: 2600,
+      durationMinutes: 30,
+      turnaroundHours: 12,
+      preparation: "Avoid deodorant or talc on the day of examination.",
+      requiresContrast: false,
+      requiresConsent: true,
+      requiresPregnancyScreening: true,
+      requiresPcPndt: false,
+      recordsRadiationDose: true,
+    },
+    {
+      code: "FL-BARIUM",
+      name: "Barium Swallow",
+      modality: "FLUOROSCOPY" as const,
+      bodyPart: "Upper GI",
+      price: 3200,
+      durationMinutes: 40,
+      turnaroundHours: 8,
+      preparation: "Overnight fast and informed consent.",
+      requiresContrast: true,
+      requiresConsent: true,
+      requiresPregnancyScreening: true,
+      requiresPcPndt: false,
+      recordsRadiationDose: true,
+    },
+    {
+      code: "DXA-BONE",
+      name: "DEXA Bone Density",
+      modality: "DEXA" as const,
+      bodyPart: "Spine and hip",
+      price: 2200,
+      durationMinutes: 20,
+      turnaroundHours: 12,
+      preparation: "Avoid calcium supplements for 24 hours.",
+      requiresContrast: false,
+      requiresConsent: false,
+      requiresPregnancyScreening: true,
+      requiresPcPndt: false,
+      recordsRadiationDose: true,
+    },
+  ];
+  radiologyProcedures.forEach((procedure, index) =>
+    db.radiologyProcedures.push({
+      id: `rdp_${index + 1}`,
+      ...procedure,
+      active: true,
+    })
+  );
+  const licenceUntil = isoDate(addDays(today, 300));
+  const qaDone = isoDate(addDays(today, -30));
+  const qaDue = isoDate(addDays(today, 150));
+  const equipmentSeed = [
+    [
+      "XR-01",
+      "Digital Radiography 1",
+      "XRAY",
+      "X-ray Room 1",
+      "Siemens",
+      "Ysio Max",
+      "XR10001",
+      true,
+    ],
+    [
+      "CT-01",
+      "128-slice CT",
+      "CT",
+      "CT Suite",
+      "GE",
+      "Revolution EVO",
+      "CT20001",
+      false,
+    ],
+    [
+      "MR-01",
+      "1.5T MRI",
+      "MRI",
+      "MRI Suite",
+      "Philips",
+      "Ingenia",
+      "MR30001",
+      false,
+    ],
+    [
+      "US-01",
+      "Ultrasound 1",
+      "ULTRASOUND",
+      "USG Room 1",
+      "Samsung",
+      "V8",
+      "US40001",
+      true,
+    ],
+    [
+      "MG-01",
+      "Digital Mammography",
+      "MAMMOGRAPHY",
+      "Mammography Room",
+      "Hologic",
+      "Selenia",
+      "MG50001",
+      false,
+    ],
+    [
+      "FL-01",
+      "Fluoroscopy Unit",
+      "FLUOROSCOPY",
+      "Fluoroscopy Suite",
+      "Siemens",
+      "Luminos",
+      "FL60001",
+      false,
+    ],
+    [
+      "DX-01",
+      "DEXA Scanner",
+      "DEXA",
+      "DEXA Room",
+      "GE",
+      "Lunar",
+      "DX70001",
+      false,
+    ],
+  ] as const;
+  equipmentSeed.forEach(
+    (
+      [code, name, modality, room, manufacturer, model, serialNumber, portable],
+      index
+    ) =>
+      db.radiologyEquipment.push({
+        id: `rde_${index + 1}`,
+        code,
+        name,
+        modality,
+        room,
+        manufacturer,
+        model,
+        serialNumber,
+        status: "ACTIVE",
+        portable,
+        aerbLicenceNumber:
+          modality === "MRI" || modality === "ULTRASOUND"
+            ? undefined
+            : `AERB/MH/${code}/2026`,
+        aerbLicenceValidUntil:
+          modality === "MRI" || modality === "ULTRASOUND"
+            ? undefined
+            : licenceUntil,
+        lastQaAt: qaDone,
+        nextQaDue: qaDue,
+        createdAt: longAgo,
+        updatedAt: longAgo,
+      })
+  );
 
   /* ------------------------------ roster ----------------------------- */
 
@@ -1072,12 +1311,18 @@ export function generateDatabase(
     if (row?.status !== "SCHEDULED" || !row.shift) return [];
     const ranges: Array<[number, number]> =
       row.shift === "M"
-        ? [[9 * 60, 13 * 60 + 45]]
+        ? [
+            [8 * 60 + 30, 13 * 60 + 45],
+            [14 * 60 + 30, 18 * 60 + 30],
+          ]
         : row.shift === "E"
-          ? [[15 * 60, 19 * 60 + 45]]
+          ? [
+              [11 * 60, 14 * 60],
+              [14 * 60 + 30, 20 * 60 + 45],
+            ]
           : [
-              [9 * 60 + 30, 12 * 60 + 45],
-              [14 * 60, 16 * 60 + 45],
+              [9 * 60, 13 * 60 + 15],
+              [14 * 60, 19 * 60 + 30],
             ];
     const out: Date[] = [];
     for (const [from, to] of ranges)
@@ -2218,7 +2463,15 @@ export function generateDatabase(
         x => deptByCode.get(x.code) === doctor.departmentId
       )!.code;
       const booked = sunday ? 1 : rng.int(1, 3);
-      const slots = rng.sample(slotsFor(doctor, day), booked);
+      const allDoctorSlots = slotsFor(doctor, day);
+      const candidateSlots =
+        d === 0
+          ? allDoctorSlots.filter(s => s.getHours() < 13)
+          : allDoctorSlots;
+      const slots = rng.sample(
+        candidateSlots,
+        Math.min(booked, candidateSlots.length)
+      );
       for (const slot of slots) {
         const lead = rng.weighted([
           [0, 25],
@@ -2254,7 +2507,10 @@ export function generateDatabase(
       }
       // Walk-ins.
       const walkIns = sunday ? rng.int(0, 2) : rng.int(0, 1);
-      const window = slotsFor(doctor, day);
+      const window =
+        d === 0
+          ? slotsFor(doctor, day).filter(s => s.getHours() < 13)
+          : slotsFor(doctor, day);
       for (let w = 0; w < walkIns && window.length; w += 1) {
         const at = addMinutes(rng.pick(window), rng.int(0, 14));
         const tpl = pickCondition(
@@ -2410,6 +2666,1038 @@ export function generateDatabase(
       fail(event.label, error);
     }
   }
+
+  // -------------------------------------------------------------------------
+  // Comprehensive Radiology & Imaging seeding across modalities, lifecycles, and equipment
+  // -------------------------------------------------------------------------
+  const xrProc = db.radiologyProcedures.find(r => r.code === "XR-CHEST")!;
+  const ctProc = db.radiologyProcedures.find(r => r.code === "CT-BRAIN")!;
+  const mrProc = db.radiologyProcedures.find(r => r.code === "MR-SPINE")!;
+  const usAbdProc = db.radiologyProcedures.find(r => r.code === "US-ABD")!;
+  const usObsProc = db.radiologyProcedures.find(r => r.code === "US-OBS")!;
+  const mgProc = db.radiologyProcedures.find(r => r.code === "MG-BILAT")!;
+  const flProc = db.radiologyProcedures.find(r => r.code === "FL-BARIUM")!;
+  const dxProc = db.radiologyProcedures.find(r => r.code === "DXA-BONE")!;
+
+  const xrEq = db.radiologyEquipment.find(r => r.code === "XR-01")!;
+  const ctEq = db.radiologyEquipment.find(r => r.code === "CT-01")!;
+  const mrEq = db.radiologyEquipment.find(r => r.code === "MR-01")!;
+  const usEq = db.radiologyEquipment.find(r => r.code === "US-01")!;
+  const mgEq = db.radiologyEquipment.find(r => r.code === "MG-01")!;
+  const flEq = db.radiologyEquipment.find(r => r.code === "FL-01")!;
+  const dxEq = db.radiologyEquipment.find(r => r.code === "DX-01")!;
+
+  const leadRadiologist = radiologists[0]!;
+  const dutyRadTech = radiologyTechs[0]!;
+  const dutyReceptionist = receptionists[0]!;
+
+  const pMale =
+    db.patients.find(p => p.gender === "MALE" && age(p) >= 30) ??
+    db.patients[0]!;
+  const pObs =
+    db.patients.find(
+      p => p.gender === "FEMALE" && age(p) >= 20 && age(p) <= 35
+    ) ?? db.patients.find(p => p.gender === "FEMALE")!;
+  const pMammo =
+    db.patients.find(p => p.gender === "FEMALE" && age(p) >= 42) ??
+    db.patients.find(p => p.gender === "FEMALE")!;
+  const pGeriatric = db.patients.find(p => age(p) >= 55) ?? db.patients[1]!;
+
+  // 1. CT-BRAIN: Urgent CT Brain with contrast (basal ganglia bleed, critical communication, pending doctor acknowledgement)
+  const ctOrderedAt = addMinutes(now, -240);
+  const [ctOrder] = radiology.createRadiologyOrders(
+    tx(ctOrderedAt, leadRadiologist.id),
+    {
+      patientId: pMale.id,
+      procedureIds: [ctProc.id],
+      priority: "URGENT",
+      clinicalIndication:
+        "Acute severe headache with focal neurological symptoms",
+      provisionalDiagnosis: "Exclude intracranial haemorrhage",
+      externalReferrer: "Emergency referral · Dr R. Shah",
+    }
+  );
+  radiology.scheduleRadiologyOrder(
+    tx(addMinutes(now, -230), dutyReceptionist.id),
+    ctOrder!.id,
+    ctEq.id,
+    addMinutes(now, -210).toISOString()
+  );
+  radiology.checkInRadiologyOrder(
+    tx(addMinutes(now, -215), dutyRadTech.id),
+    ctOrder!.id
+  );
+  radiology.saveRadiologySafety(
+    tx(addMinutes(now, -205), dutyRadTech.id),
+    ctOrder!.id,
+    {
+      identityVerified: true,
+      preparationConfirmed: true,
+      consentConfirmed: true,
+      allergiesReviewed: true,
+      renalFunctionReviewed: true,
+      pregnancyStatus: "NOT_APPLICABLE",
+      mriImplantScreeningComplete: false,
+      pcPndtFormComplete: false,
+      contrastAgent: "Iohexol",
+      contrastDose: "70 mL",
+      contrastLot: "IOX-2610",
+      notes: "Serum creatinine 0.9 mg/dL. No prior contrast reaction.",
+    }
+  );
+  const ctStudy = radiology.startRadiologyStudy(
+    tx(addMinutes(now, -195), dutyRadTech.id),
+    ctOrder!.id
+  );
+  radiology.completeRadiologyStudy(
+    tx(addMinutes(now, -175), dutyRadTech.id),
+    ctStudy.id,
+    {
+      accepted: true,
+      seriesCount: 5,
+      imageCount: 286,
+      doseMeasurements: [{ label: "DLP", value: 810, unit: "mGy·cm" }],
+      contrastAdministered: true,
+    }
+  );
+  const ctReport = radiology.saveRadiologyReport(
+    tx(addMinutes(now, -130), leadRadiologist.id),
+    ctOrder!.id,
+    {
+      findings:
+        "Small acute hyperdensity in the right basal ganglia with minimal surrounding oedema. No midline shift.",
+      impression:
+        "Small acute right basal ganglia haemorrhage. Urgent clinical correlation advised.",
+      recommendations:
+        "Neurology review and follow-up CT as clinically indicated.",
+      criticality: "CRITICAL",
+    }
+  );
+  const criticalCommunication = radiology.recordRadiologyCommunication(
+    tx(addMinutes(now, -125), leadRadiologist.id),
+    ctReport.id,
+    {
+      recipientId: primaryDoctor.id,
+      method: "PHONE",
+      outcome: "Result read back correctly; urgent neurology review arranged.",
+    }
+  );
+  radiology.finaliseRadiologyReport(
+    tx(addMinutes(now, -120), leadRadiologist.id),
+    ctReport.id
+  );
+  // Keep one acknowledgement pending so the doctor's safety queue has work.
+  void criticalCommunication;
+
+  // 2. XR-CHEST: Routine Chest X-ray PA (completed historical study)
+  const xrOrderedAt = addDays(now, -5);
+  const [xrOrder] = radiology.createRadiologyOrders(
+    tx(xrOrderedAt, (doctors[1] ?? primaryDoctor).id),
+    {
+      patientId: (db.patients[2] ?? pMale).id,
+      procedureIds: [xrProc.id],
+      priority: "ROUTINE",
+      clinicalIndication: "Fever and persistent productive cough for 5 days",
+      provisionalDiagnosis: "Rule out lobar consolidation",
+      externalReferrer: "OPD consultation",
+    }
+  );
+  radiology.scheduleRadiologyOrder(
+    tx(addMinutes(xrOrderedAt, 15), dutyReceptionist.id),
+    xrOrder!.id,
+    xrEq.id,
+    addMinutes(xrOrderedAt, 30).toISOString()
+  );
+  radiology.checkInRadiologyOrder(
+    tx(addMinutes(xrOrderedAt, 25), dutyRadTech.id),
+    xrOrder!.id
+  );
+  radiology.saveRadiologySafety(
+    tx(addMinutes(xrOrderedAt, 30), dutyRadTech.id),
+    xrOrder!.id,
+    {
+      identityVerified: true,
+      preparationConfirmed: true,
+      consentConfirmed: false,
+      allergiesReviewed: true,
+      renalFunctionReviewed: false,
+      pregnancyStatus: "NOT_APPLICABLE",
+      mriImplantScreeningComplete: false,
+      pcPndtFormComplete: false,
+    }
+  );
+  const xrStudy = radiology.startRadiologyStudy(
+    tx(addMinutes(xrOrderedAt, 35), dutyRadTech.id),
+    xrOrder!.id
+  );
+  radiology.completeRadiologyStudy(
+    tx(addMinutes(xrOrderedAt, 42), dutyRadTech.id),
+    xrStudy.id,
+    {
+      accepted: true,
+      seriesCount: 1,
+      imageCount: 1,
+      doseMeasurements: [{ label: "ESD", value: 0.12, unit: "mGy" }],
+    }
+  );
+  const xrReport = radiology.saveRadiologyReport(
+    tx(addMinutes(xrOrderedAt, 90), leadRadiologist.id),
+    xrOrder!.id,
+    {
+      findings:
+        "Clear bilateral lung parenchyma without focal consolidation or collapse. Cardiothoracic ratio is normal. Bilateral costophrenic angles and hemidiaphragms are normal.",
+      impression:
+        "Normal chest radiograph (PA view). No acute pulmonary lesion.",
+      recommendations: "Clinical correlation with respiratory symptoms.",
+      criticality: "ROUTINE",
+    }
+  );
+  radiology.finaliseRadiologyReport(
+    tx(addMinutes(xrOrderedAt, 95), leadRadiologist.id),
+    xrReport.id
+  );
+
+  // 3. US-OBS: Obstetric Ultrasound with PCPNDT Form F (completed historical study)
+  const obsOrderedAt = addDays(now, -3);
+  const [obsOrder] = radiology.createRadiologyOrders(
+    tx(obsOrderedAt, (doctors[2] ?? primaryDoctor).id),
+    {
+      patientId: pObs.id,
+      procedureIds: [usObsProc.id],
+      priority: "ROUTINE",
+      clinicalIndication: "Antenatal anomaly and growth scan at 20 weeks",
+      provisionalDiagnosis: "G2P1 at 20w3d",
+      externalReferrer: "Obstetrics OPD",
+    }
+  );
+  radiology.scheduleRadiologyOrder(
+    tx(addMinutes(obsOrderedAt, 20), dutyReceptionist.id),
+    obsOrder!.id,
+    usEq.id,
+    addMinutes(obsOrderedAt, 45).toISOString()
+  );
+  radiology.checkInRadiologyOrder(
+    tx(addMinutes(obsOrderedAt, 40), dutyRadTech.id),
+    obsOrder!.id
+  );
+  radiology.saveRadiologySafety(
+    tx(addMinutes(obsOrderedAt, 45), dutyRadTech.id),
+    obsOrder!.id,
+    {
+      identityVerified: true,
+      preparationConfirmed: true,
+      consentConfirmed: true,
+      allergiesReviewed: true,
+      renalFunctionReviewed: false,
+      pregnancyStatus: "PREGNANT",
+      mriImplantScreeningComplete: false,
+      pcPndtFormComplete: true,
+      pcPndtIndication:
+        "Routine second-trimester anomaly and fetal biometry evaluation",
+      lmp: isoDate(addDays(now, -145)),
+    }
+  );
+  const obsStudy = radiology.startRadiologyStudy(
+    tx(addMinutes(obsOrderedAt, 50), dutyRadTech.id),
+    obsOrder!.id
+  );
+  radiology.completeRadiologyStudy(
+    tx(addMinutes(obsOrderedAt, 75), dutyRadTech.id),
+    obsStudy.id,
+    {
+      accepted: true,
+      seriesCount: 3,
+      imageCount: 26,
+      doseMeasurements: [],
+    }
+  );
+  const obsReport = radiology.saveRadiologyReport(
+    tx(addMinutes(obsOrderedAt, 110), leadRadiologist.id),
+    obsOrder!.id,
+    {
+      findings:
+        "Single active intrauterine fetus in cephalic presentation. Regular cardiac activity observed (FHR 144 bpm). Adequate amniotic fluid volume (AFI 14.2 cm). Placenta is posterior, upper segment, clear of internal cervical os. Fetal biometry: BPD 48.5 mm, HC 176 mm, AC 154 mm, FL 33.8 mm, corresponding to 20w4d. Gross fetal anatomy within normal limits.",
+      impression:
+        "Single live intrauterine gestation at 20 weeks 4 days. Normal fetal anatomy and interval growth. PCPNDT statutory declaration completed.",
+      recommendations: "Routine follow-up antenatal check at 28 weeks.",
+      criticality: "ROUTINE",
+    }
+  );
+  radiology.finaliseRadiologyReport(
+    tx(addMinutes(obsOrderedAt, 115), leadRadiologist.id),
+    obsReport.id
+  );
+
+  // 4. MR-SPINE: MRI Lumbar Spine with AMENDED report (completed historical study)
+  const mrOrderedAt = addDays(now, -2);
+  const [mrOrder] = radiology.createRadiologyOrders(
+    tx(mrOrderedAt, (doctors[3] ?? primaryDoctor).id),
+    {
+      patientId: (db.patients[4] ?? pMale).id,
+      procedureIds: [mrProc.id],
+      priority: "ROUTINE",
+      clinicalIndication: "Chronic lower back ache with bilateral buttock pain",
+      provisionalDiagnosis: "Lumbar spondylosis / discopathy",
+      externalReferrer: "Orthopaedics OPD",
+    }
+  );
+  radiology.scheduleRadiologyOrder(
+    tx(addMinutes(mrOrderedAt, 30), dutyReceptionist.id),
+    mrOrder!.id,
+    mrEq.id,
+    addMinutes(mrOrderedAt, 60).toISOString()
+  );
+  radiology.checkInRadiologyOrder(
+    tx(addMinutes(mrOrderedAt, 55), dutyRadTech.id),
+    mrOrder!.id
+  );
+  radiology.saveRadiologySafety(
+    tx(addMinutes(mrOrderedAt, 60), dutyRadTech.id),
+    mrOrder!.id,
+    {
+      identityVerified: true,
+      preparationConfirmed: true,
+      consentConfirmed: true,
+      allergiesReviewed: true,
+      renalFunctionReviewed: false,
+      pregnancyStatus: "NOT_APPLICABLE",
+      mriImplantScreeningComplete: true,
+      pcPndtFormComplete: false,
+      notes: "No metallic implants, aneurysm clips, or cardiac pacemaker.",
+    }
+  );
+  const mrStudy = radiology.startRadiologyStudy(
+    tx(addMinutes(mrOrderedAt, 65), dutyRadTech.id),
+    mrOrder!.id
+  );
+  radiology.completeRadiologyStudy(
+    tx(addMinutes(mrOrderedAt, 105), dutyRadTech.id),
+    mrStudy.id,
+    {
+      accepted: true,
+      seriesCount: 6,
+      imageCount: 148,
+      doseMeasurements: [],
+    }
+  );
+  const mrReport = radiology.saveRadiologyReport(
+    tx(addMinutes(mrOrderedAt, 160), leadRadiologist.id),
+    mrOrder!.id,
+    {
+      findings:
+        "L4-L5 intervertebral disc desiccation with diffuse posterior disc bulge. Bilateral neural exit foramina patent. Conus medullaris terminates normally at L1.",
+      impression:
+        "Mild L4-L5 disc degenerative change without focal nerve root compression.",
+      recommendations: "Conservative management and core strengthening.",
+      criticality: "ROUTINE",
+    }
+  );
+  radiology.finaliseRadiologyReport(
+    tx(addMinutes(mrOrderedAt, 165), leadRadiologist.id),
+    mrReport.id
+  );
+  radiology.amendRadiologyReport(
+    tx(addDays(now, -1), leadRadiologist.id),
+    mrReport.id,
+    {
+      findings:
+        "L4-L5 intervertebral disc desiccation with broad-based posterior disc bulge and a small left posterolateral annular fissure abutting the traversing left L5 root.",
+      impression:
+        "L4-L5 disc degeneration with left posterolateral annular fissure and mild traversing root irritation.",
+      recommendations:
+        "Clinical correlation with left lower extremity symptoms; consider physiotherapy / targeted injection if refractory.",
+      reason:
+        "Addendum following comparison with external previous scan from 2025; annular fissure further delineated.",
+    }
+  );
+
+  // 5. US-ABD: Ultrasound Abdomen (completed historical study)
+  const usOrderedAt = addDays(now, -4);
+  const [usOrder] = radiology.createRadiologyOrders(
+    tx(usOrderedAt, (doctors[1] ?? primaryDoctor).id),
+    {
+      patientId: (db.patients[5] ?? pMale).id,
+      procedureIds: [usAbdProc.id],
+      priority: "ROUTINE",
+      clinicalIndication: "Dyspepsia and right hypochondriac fullness",
+      provisionalDiagnosis: "Fatty liver / cholelithiasis",
+      externalReferrer: "Internal Medicine OPD",
+    }
+  );
+  radiology.scheduleRadiologyOrder(
+    tx(addMinutes(usOrderedAt, 20), dutyReceptionist.id),
+    usOrder!.id,
+    usEq.id,
+    addMinutes(usOrderedAt, 50).toISOString()
+  );
+  radiology.checkInRadiologyOrder(
+    tx(addMinutes(usOrderedAt, 45), dutyRadTech.id),
+    usOrder!.id
+  );
+  radiology.saveRadiologySafety(
+    tx(addMinutes(usOrderedAt, 50), dutyRadTech.id),
+    usOrder!.id,
+    {
+      identityVerified: true,
+      preparationConfirmed: true,
+      consentConfirmed: false,
+      allergiesReviewed: true,
+      renalFunctionReviewed: false,
+      pregnancyStatus: "NOT_APPLICABLE",
+      mriImplantScreeningComplete: false,
+      pcPndtFormComplete: false,
+      notes: "Fasting for 6 hours confirmed.",
+    }
+  );
+  const usStudy = radiology.startRadiologyStudy(
+    tx(addMinutes(usOrderedAt, 55), dutyRadTech.id),
+    usOrder!.id
+  );
+  radiology.completeRadiologyStudy(
+    tx(addMinutes(usOrderedAt, 75), dutyRadTech.id),
+    usStudy.id,
+    {
+      accepted: true,
+      seriesCount: 2,
+      imageCount: 18,
+      doseMeasurements: [],
+    }
+  );
+  const usReport = radiology.saveRadiologyReport(
+    tx(addMinutes(usOrderedAt, 120), leadRadiologist.id),
+    usOrder!.id,
+    {
+      findings:
+        "Liver is normal in size with smooth margins and mildly increased diffuse parenchymal echogenicity. Intrahepatic biliary radicles are not dilated. Gallbladder is well distended, thin-walled, no calculi or sludge. Pancreas, spleen and bilateral kidneys appear normal.",
+      impression:
+        "Grade 1 hepatic steatosis (Fatty liver). No focal hepatic lesion or gallstones.",
+      recommendations:
+        "Dietary modification, exercise, and repeat sonography in 12 months.",
+      criticality: "ROUTINE",
+    }
+  );
+  radiology.finaliseRadiologyReport(
+    tx(addMinutes(usOrderedAt, 125), leadRadiologist.id),
+    usReport.id
+  );
+
+  // 6. MG-BILAT: Bilateral Mammography (completed historical study)
+  const mgOrderedAt = addDays(now, -6);
+  const [mgOrder] = radiology.createRadiologyOrders(
+    tx(mgOrderedAt, (doctors[2] ?? primaryDoctor).id),
+    {
+      patientId: pMammo.id,
+      procedureIds: [mgProc.id],
+      priority: "ROUTINE",
+      clinicalIndication: "Routine annual screening mammography",
+      provisionalDiagnosis: "Asymptomatic screening",
+      externalReferrer: "Well-Woman Clinic",
+    }
+  );
+  radiology.scheduleRadiologyOrder(
+    tx(addMinutes(mgOrderedAt, 25), dutyReceptionist.id),
+    mgOrder!.id,
+    mgEq.id,
+    addMinutes(mgOrderedAt, 60).toISOString()
+  );
+  radiology.checkInRadiologyOrder(
+    tx(addMinutes(mgOrderedAt, 55), dutyRadTech.id),
+    mgOrder!.id
+  );
+  radiology.saveRadiologySafety(
+    tx(addMinutes(mgOrderedAt, 60), dutyRadTech.id),
+    mgOrder!.id,
+    {
+      identityVerified: true,
+      preparationConfirmed: true,
+      consentConfirmed: true,
+      allergiesReviewed: true,
+      renalFunctionReviewed: false,
+      pregnancyStatus: "NOT_PREGNANT",
+      mriImplantScreeningComplete: false,
+      pcPndtFormComplete: false,
+    }
+  );
+  const mgStudy = radiology.startRadiologyStudy(
+    tx(addMinutes(mgOrderedAt, 65), dutyRadTech.id),
+    mgOrder!.id
+  );
+  radiology.completeRadiologyStudy(
+    tx(addMinutes(mgOrderedAt, 90), dutyRadTech.id),
+    mgStudy.id,
+    {
+      accepted: true,
+      seriesCount: 4,
+      imageCount: 4,
+      doseMeasurements: [
+        { label: "MGD (Right)", value: 1.32, unit: "mGy" },
+        { label: "MGD (Left)", value: 1.38, unit: "mGy" },
+      ],
+    }
+  );
+  const mgReport = radiology.saveRadiologyReport(
+    tx(addMinutes(mgOrderedAt, 150), leadRadiologist.id),
+    mgOrder!.id,
+    {
+      findings:
+        "Bilateral digital mammogram in standard CC and MLO projections. Scattered areas of fibroglandular density (ACR density category B). No suspicious microcalcification clusters, architectural distortion, or focal soft-tissue masses in either breast. Bilateral axillary lymph nodes appear benign.",
+      impression: "Normal screening mammogram. BI-RADS Category 1 (Negative).",
+      recommendations: "Routine screening mammogram in 1 year.",
+      criticality: "ROUTINE",
+    }
+  );
+  radiology.finaliseRadiologyReport(
+    tx(addMinutes(mgOrderedAt, 155), leadRadiologist.id),
+    mgReport.id
+  );
+
+  // 7. FL-BARIUM: Fluoroscopy Barium Swallow (completed historical study)
+  const flOrderedAt = addDays(now, -7);
+  const [flOrder] = radiology.createRadiologyOrders(
+    tx(flOrderedAt, (doctors[1] ?? primaryDoctor).id),
+    {
+      patientId: (db.patients[6] ?? pMale).id,
+      procedureIds: [flProc.id],
+      priority: "ROUTINE",
+      clinicalIndication:
+        "Intermittent sensation of food sticking in mid-chest",
+      provisionalDiagnosis:
+        "Evaluate for esophageal motility or structural lesion",
+      externalReferrer: "Gastroenterology OPD",
+    }
+  );
+  radiology.scheduleRadiologyOrder(
+    tx(addMinutes(flOrderedAt, 30), dutyReceptionist.id),
+    flOrder!.id,
+    flEq.id,
+    addMinutes(flOrderedAt, 70).toISOString()
+  );
+  radiology.checkInRadiologyOrder(
+    tx(addMinutes(flOrderedAt, 65), dutyRadTech.id),
+    flOrder!.id
+  );
+  radiology.saveRadiologySafety(
+    tx(addMinutes(flOrderedAt, 70), dutyRadTech.id),
+    flOrder!.id,
+    {
+      identityVerified: true,
+      preparationConfirmed: true,
+      consentConfirmed: true,
+      allergiesReviewed: true,
+      renalFunctionReviewed: true,
+      pregnancyStatus: "NOT_APPLICABLE",
+      mriImplantScreeningComplete: false,
+      pcPndtFormComplete: false,
+      contrastAgent: "Barium Sulfate Suspension",
+      contrastDose: "160 mL",
+      contrastLot: "BAR-402",
+    }
+  );
+  const flStudy = radiology.startRadiologyStudy(
+    tx(addMinutes(flOrderedAt, 75), dutyRadTech.id),
+    flOrder!.id
+  );
+  radiology.completeRadiologyStudy(
+    tx(addMinutes(flOrderedAt, 110), dutyRadTech.id),
+    flStudy.id,
+    {
+      accepted: true,
+      seriesCount: 3,
+      imageCount: 18,
+      doseMeasurements: [
+        { label: "DAP", value: 34.2, unit: "Gy·cm²" },
+        { label: "Fluoro Time", value: 1.6, unit: "min" },
+      ],
+      contrastAdministered: true,
+    }
+  );
+  const flReport = radiology.saveRadiologyReport(
+    tx(addMinutes(flOrderedAt, 180), leadRadiologist.id),
+    flOrder!.id,
+    {
+      findings:
+        "Prompt passage of barium through oral cavity and pharynx. Normal primary peristaltic waves propagate through the thoracic esophagus without tertiary contractions. No filling defects, mucosal ulceration, or caliber narrowing. Gastroesophageal junction is unremarkable.",
+      impression:
+        "Normal barium swallow examination. No anatomical obstruction or hiatal hernia.",
+      recommendations: "Consider upper GI endoscopy if symptoms persist.",
+      criticality: "ROUTINE",
+    }
+  );
+  radiology.finaliseRadiologyReport(
+    tx(addMinutes(flOrderedAt, 185), leadRadiologist.id),
+    flReport.id
+  );
+
+  // 8. DXA-BONE: DEXA Bone Density (completed historical study)
+  const dxOrderedAt = addDays(now, -8);
+  const [dxOrder] = radiology.createRadiologyOrders(
+    tx(dxOrderedAt, (doctors[4] ?? primaryDoctor).id),
+    {
+      patientId: pGeriatric.id,
+      procedureIds: [dxProc.id],
+      priority: "ROUTINE",
+      clinicalIndication: "Post-menopausal osteoporosis screening",
+      provisionalDiagnosis: "Osteopenia / fracture risk assessment",
+      externalReferrer: "Orthopaedics OPD",
+    }
+  );
+  radiology.scheduleRadiologyOrder(
+    tx(addMinutes(dxOrderedAt, 20), dutyReceptionist.id),
+    dxOrder!.id,
+    dxEq.id,
+    addMinutes(dxOrderedAt, 45).toISOString()
+  );
+  radiology.checkInRadiologyOrder(
+    tx(addMinutes(dxOrderedAt, 40), dutyRadTech.id),
+    dxOrder!.id
+  );
+  radiology.saveRadiologySafety(
+    tx(addMinutes(dxOrderedAt, 45), dutyRadTech.id),
+    dxOrder!.id,
+    {
+      identityVerified: true,
+      preparationConfirmed: true,
+      consentConfirmed: false,
+      allergiesReviewed: true,
+      renalFunctionReviewed: false,
+      pregnancyStatus: "NOT_APPLICABLE",
+      mriImplantScreeningComplete: false,
+      pcPndtFormComplete: false,
+    }
+  );
+  const dxStudy = radiology.startRadiologyStudy(
+    tx(addMinutes(dxOrderedAt, 50), dutyRadTech.id),
+    dxOrder!.id
+  );
+  radiology.completeRadiologyStudy(
+    tx(addMinutes(dxOrderedAt, 68), dutyRadTech.id),
+    dxStudy.id,
+    {
+      accepted: true,
+      seriesCount: 2,
+      imageCount: 4,
+      doseMeasurements: [
+        { label: "Effective Dose", value: 0.002, unit: "mSv" },
+      ],
+    }
+  );
+  const dxReport = radiology.saveRadiologyReport(
+    tx(addMinutes(dxOrderedAt, 110), leadRadiologist.id),
+    dxOrder!.id,
+    {
+      findings:
+        "DEXA scan of lumbar spine (L1-L4) and left proximal femur. Lumbar spine BMD: 0.886 g/cm², T-score -1.8, Z-score -0.3. Left femoral neck BMD: 0.730 g/cm², T-score -1.6, Z-score -0.2. Total hip BMD: 0.812 g/cm², T-score -1.4.",
+      impression:
+        "Bone mineral density is consistent with Osteopenia (WHO diagnostic criteria).",
+      recommendations:
+        "Adequate calcium (1000 mg/d) and Vitamin D (1000 IU/d). Regular weight-bearing exercise. Follow-up DEXA in 2 years.",
+      criticality: "ROUTINE",
+    }
+  );
+  radiology.finaliseRadiologyReport(
+    tx(addMinutes(dxOrderedAt, 115), leadRadiologist.id),
+    dxReport.id
+  );
+
+  // 9. XR-CHEST with REJECTED attempt & REPEAT study
+  const repeatOrderedAt = addDays(now, -3);
+  const [repeatOrder] = radiology.createRadiologyOrders(
+    tx(repeatOrderedAt, primaryDoctor.id),
+    {
+      patientId: (db.patients[7] ?? pMale).id,
+      procedureIds: [xrProc.id],
+      priority: "ROUTINE",
+      clinicalIndication: "Pre-operative anaesthesia clearance",
+      provisionalDiagnosis: "Fitness for elective hernia repair",
+      externalReferrer: "General Surgery OPD",
+    }
+  );
+  radiology.scheduleRadiologyOrder(
+    tx(addMinutes(repeatOrderedAt, 15), dutyReceptionist.id),
+    repeatOrder!.id,
+    xrEq.id,
+    addMinutes(repeatOrderedAt, 35).toISOString()
+  );
+  radiology.checkInRadiologyOrder(
+    tx(addMinutes(repeatOrderedAt, 30), dutyRadTech.id),
+    repeatOrder!.id
+  );
+  radiology.saveRadiologySafety(
+    tx(addMinutes(repeatOrderedAt, 35), dutyRadTech.id),
+    repeatOrder!.id,
+    {
+      identityVerified: true,
+      preparationConfirmed: true,
+      consentConfirmed: false,
+      allergiesReviewed: true,
+      renalFunctionReviewed: false,
+      pregnancyStatus: "NOT_APPLICABLE",
+      mriImplantScreeningComplete: false,
+      pcPndtFormComplete: false,
+    }
+  );
+  const repeatAttempt1 = radiology.startRadiologyStudy(
+    tx(addMinutes(repeatOrderedAt, 40), dutyRadTech.id),
+    repeatOrder!.id
+  );
+  radiology.completeRadiologyStudy(
+    tx(addMinutes(repeatOrderedAt, 44), dutyRadTech.id),
+    repeatAttempt1.id,
+    {
+      accepted: false,
+      rejectionReason:
+        "Severe patient respiratory movement artifact during exposure; repeat acquisition required",
+      seriesCount: 1,
+      imageCount: 1,
+      doseMeasurements: [{ label: "ESD", value: 0.11, unit: "mGy" }],
+    }
+  );
+  const repeatAttempt2 = radiology.startRadiologyStudy(
+    tx(addMinutes(repeatOrderedAt, 48), dutyRadTech.id),
+    repeatOrder!.id
+  );
+  radiology.completeRadiologyStudy(
+    tx(addMinutes(repeatOrderedAt, 52), dutyRadTech.id),
+    repeatAttempt2.id,
+    {
+      accepted: true,
+      seriesCount: 1,
+      imageCount: 1,
+      doseMeasurements: [{ label: "ESD", value: 0.12, unit: "mGy" }],
+    }
+  );
+  const repeatReport = radiology.saveRadiologyReport(
+    tx(addMinutes(repeatOrderedAt, 90), leadRadiologist.id),
+    repeatOrder!.id,
+    {
+      findings:
+        "Repeat acquisition is diagnostically optimal. Bilateral lung fields are clear. Normal cardiac silhouette and mediastinal contours. Diaphragm contours smooth.",
+      impression:
+        "Normal chest radiograph (PA view). Clear for surgery from a pulmonary perspective.",
+      recommendations: "Pre-anaesthetic clearance as indicated.",
+      criticality: "ROUTINE",
+    }
+  );
+  radiology.finaliseRadiologyReport(
+    tx(addMinutes(repeatOrderedAt, 95), leadRadiologist.id),
+    repeatReport.id
+  );
+
+  // 10. REPORT_DRAFT: Acquired study today with draft report in progress
+  const draftOrderedAt = addMinutes(now, -50);
+  const [draftOrder] = radiology.createRadiologyOrders(
+    tx(draftOrderedAt, (doctors[1] ?? primaryDoctor).id),
+    {
+      patientId: (db.patients[8] ?? pMale).id,
+      procedureIds: [usAbdProc.id],
+      priority: "ROUTINE",
+      clinicalIndication: "Epigastric pain radiating to back",
+      provisionalDiagnosis: "Rule out gallstone disease",
+      externalReferrer: "Emergency / OPD",
+    }
+  );
+  radiology.scheduleRadiologyOrder(
+    tx(addMinutes(now, -45), dutyReceptionist.id),
+    draftOrder!.id,
+    usEq.id,
+    addMinutes(now, -35).toISOString()
+  );
+  radiology.checkInRadiologyOrder(
+    tx(addMinutes(now, -40), dutyRadTech.id),
+    draftOrder!.id
+  );
+  radiology.saveRadiologySafety(
+    tx(addMinutes(now, -38), dutyRadTech.id),
+    draftOrder!.id,
+    {
+      identityVerified: true,
+      preparationConfirmed: true,
+      consentConfirmed: false,
+      allergiesReviewed: true,
+      renalFunctionReviewed: false,
+      pregnancyStatus: "NOT_APPLICABLE",
+      mriImplantScreeningComplete: false,
+      pcPndtFormComplete: false,
+      notes: "Fasting confirmed.",
+    }
+  );
+  const draftStudy = radiology.startRadiologyStudy(
+    tx(addMinutes(now, -35), dutyRadTech.id),
+    draftOrder!.id
+  );
+  radiology.completeRadiologyStudy(
+    tx(addMinutes(now, -20), dutyRadTech.id),
+    draftStudy.id,
+    {
+      accepted: true,
+      seriesCount: 2,
+      imageCount: 16,
+      doseMeasurements: [],
+    }
+  );
+  radiology.saveRadiologyReport(
+    tx(addMinutes(now, -10), leadRadiologist.id),
+    draftOrder!.id,
+    {
+      findings:
+        "Gallbladder is distended and demonstrates a single 11 mm acoustic shadowing calculus in the neck region. Gallbladder wall thickness is 2.5 mm without pericholecystic fluid. Common bile duct measures 4.2 mm.",
+      impression:
+        "Cholelithiasis with calculus in gallbladder neck. No definite sonographic signs of acute cholecystitis.",
+      recommendations: "Surgical opinion regarding elective cholecystectomy.",
+      criticality: "ROUTINE",
+    }
+  );
+
+  // 11. IN_PROGRESS: Study active in scanning room right now
+  const progOrderedAt = addMinutes(now, -25);
+  const [progOrder] = radiology.createRadiologyOrders(
+    tx(progOrderedAt, primaryDoctor.id),
+    {
+      patientId: (db.patients[9] ?? pMale).id,
+      procedureIds: [ctProc.id],
+      priority: "URGENT",
+      clinicalIndication: "Recent onset severe throbbing headache with nausea",
+      provisionalDiagnosis: "Subarachnoid bleed vs complicated migraine",
+      externalReferrer: "Emergency department",
+    }
+  );
+  radiology.scheduleRadiologyOrder(
+    tx(addMinutes(now, -20), dutyReceptionist.id),
+    progOrder!.id,
+    ctEq.id,
+    addMinutes(now, -15).toISOString()
+  );
+  radiology.checkInRadiologyOrder(
+    tx(addMinutes(now, -18), dutyRadTech.id),
+    progOrder!.id
+  );
+  radiology.saveRadiologySafety(
+    tx(addMinutes(now, -15), dutyRadTech.id),
+    progOrder!.id,
+    {
+      identityVerified: true,
+      preparationConfirmed: true,
+      consentConfirmed: true,
+      allergiesReviewed: true,
+      renalFunctionReviewed: true,
+      pregnancyStatus: "NOT_APPLICABLE",
+      mriImplantScreeningComplete: false,
+      pcPndtFormComplete: false,
+      contrastAgent: "Iohexol",
+      contrastDose: "65 mL",
+      contrastLot: "IOX-2612",
+      notes: "eGFR 88 mL/min. No previous adverse drug reactions.",
+    }
+  );
+  radiology.startRadiologyStudy(
+    tx(addMinutes(now, -10), dutyRadTech.id),
+    progOrder!.id
+  );
+
+  // 12. READY: Safety check complete, ready for acquisition
+  const readyOrderedAt = addMinutes(now, -30);
+  const [readyOrder] = radiology.createRadiologyOrders(
+    tx(readyOrderedAt, (doctors[3] ?? primaryDoctor).id),
+    {
+      patientId: (db.patients[10] ?? pMale).id,
+      procedureIds: [mrProc.id],
+      priority: "ROUTINE",
+      clinicalIndication: "Right sciatica and numbness in S1 dermatome",
+      provisionalDiagnosis: "L5-S1 disc herniation",
+      externalReferrer: "Spine clinic",
+    }
+  );
+  radiology.scheduleRadiologyOrder(
+    tx(addMinutes(now, -25), dutyReceptionist.id),
+    readyOrder!.id,
+    mrEq.id,
+    addMinutes(now, 15).toISOString()
+  );
+  radiology.checkInRadiologyOrder(
+    tx(addMinutes(now, -20), dutyRadTech.id),
+    readyOrder!.id
+  );
+  radiology.saveRadiologySafety(
+    tx(addMinutes(now, -15), dutyRadTech.id),
+    readyOrder!.id,
+    {
+      identityVerified: true,
+      preparationConfirmed: true,
+      consentConfirmed: true,
+      allergiesReviewed: true,
+      renalFunctionReviewed: false,
+      pregnancyStatus: "NOT_APPLICABLE",
+      mriImplantScreeningComplete: true,
+      pcPndtFormComplete: false,
+      notes:
+        "Implant safety screening checklist signed and verified by radiographer.",
+    }
+  );
+
+  // 13. CHECKED_IN: Patient checked in at radiology reception
+  const ciOrderedAt = addMinutes(now, -35);
+  const [ciOrder] = radiology.createRadiologyOrders(
+    tx(ciOrderedAt, (doctors[2] ?? primaryDoctor).id),
+    {
+      patientId: (db.patients[11] ?? pMammo).id,
+      procedureIds: [mgProc.id],
+      priority: "ROUTINE",
+      clinicalIndication:
+        "Palpable small nodule in upper outer quadrant of right breast",
+      provisionalDiagnosis: "Fibroadenoma vs cyst",
+      externalReferrer: "Surgical OPD",
+    }
+  );
+  radiology.scheduleRadiologyOrder(
+    tx(addMinutes(now, -30), dutyReceptionist.id),
+    ciOrder!.id,
+    mgEq.id,
+    addMinutes(now, 20).toISOString()
+  );
+  radiology.checkInRadiologyOrder(
+    tx(addMinutes(now, -22), dutyRadTech.id),
+    ciOrder!.id
+  );
+
+  // 14. SCHEDULED: Scheduled on today's machine appointment book
+  const schedOrderedAt = addMinutes(now, -40);
+  const [schedOrder] = radiology.createRadiologyOrders(
+    tx(schedOrderedAt, (doctors[2] ?? primaryDoctor).id),
+    {
+      patientId: (db.patients[12] ?? pObs).id,
+      procedureIds: [usObsProc.id],
+      priority: "ROUTINE",
+      clinicalIndication: "Second trimester anomaly scan (19 weeks)",
+      provisionalDiagnosis: "Normal intrauterine gestation",
+      externalReferrer: "Antenatal clinic",
+    }
+  );
+  radiology.scheduleRadiologyOrder(
+    tx(addMinutes(now, -30), dutyReceptionist.id),
+    schedOrder!.id,
+    usEq.id,
+    addMinutes(now, 45).toISOString()
+  );
+
+  // 15. ORDERED: Open order in worklist awaiting scheduling
+  radiology.createRadiologyOrders(tx(addMinutes(now, -45), primaryDoctor.id), {
+    patientId: (db.patients[1] ?? pMale).id,
+    procedureIds: [xrProc.id],
+    priority: "ROUTINE",
+    clinicalIndication: "Subacute dry cough and low-grade evening fever",
+    provisionalDiagnosis: "Lower respiratory tract infection",
+    externalReferrer: "OPD follow-up",
+  });
+
+  // 16. CANCELLED: Order cancelled with billing reversal
+  const cancelOrderedAt = addDays(now, -1);
+  const [cancelOrder] = radiology.createRadiologyOrders(
+    tx(cancelOrderedAt, primaryDoctor.id),
+    {
+      patientId: (db.patients[13] ?? pMale).id,
+      procedureIds: [ctProc.id],
+      priority: "ROUTINE",
+      clinicalIndication: "Chronic tension headache",
+      provisionalDiagnosis: "Tension headache",
+      externalReferrer: "General OPD",
+    }
+  );
+  radiology.cancelRadiologyOrder(
+    tx(addMinutes(cancelOrderedAt, 40), dutyReceptionist.id),
+    cancelOrder!.id,
+    "Patient requested cancellation; decided to proceed with conservative management."
+  );
+
+  // Equipment Events across modalities (QA, Calibration, Maintenance, Downtime & RTS)
+  radiology.recordRadiologyEquipmentEvent(
+    tx(addMinutes(now, -90), dutyRadTech.id),
+    xrEq.id,
+    {
+      type: "QA",
+      status: "COMPLETED",
+      result:
+        "Monthly image-quality, beam alignment and reject rate evaluation passed within AERB tolerance.",
+    }
+  );
+  radiology.recordRadiologyEquipmentEvent(
+    tx(addMinutes(now, -85), dutyRadTech.id),
+    ctEq.id,
+    {
+      type: "QA",
+      status: "COMPLETED",
+      result: "CTDI water phantom calibration and laser alignment test passed.",
+    }
+  );
+  radiology.recordRadiologyEquipmentEvent(
+    tx(addMinutes(now, -80), dutyRadTech.id),
+    ctEq.id,
+    {
+      type: "CALIBRATION",
+      status: "COMPLETED",
+      result:
+        "Annual multi-slice detector sensitivity and kVp calibration completed.",
+    }
+  );
+  radiology.recordRadiologyEquipmentEvent(
+    tx(addMinutes(now, -75), dutyRadTech.id),
+    mrEq.id,
+    {
+      type: "QA",
+      status: "COMPLETED",
+      result:
+        "ACR phantom signal-to-noise ratio and magnetic field homogeneity verified.",
+    }
+  );
+  radiology.recordRadiologyEquipmentEvent(
+    tx(addMinutes(now, -70), dutyRadTech.id),
+    mgEq.id,
+    {
+      type: "QA",
+      status: "COMPLETED",
+      result:
+        "Mammography ACR phantom CNR, compression force, and AEC reproducibility test passed.",
+    }
+  );
+  radiology.recordRadiologyEquipmentEvent(
+    tx(addMinutes(now, -65), dutyRadTech.id),
+    dxEq.id,
+    {
+      type: "QA",
+      status: "COMPLETED",
+      result: "Daily spine phantom calibration completed within 1.0% CV.",
+    }
+  );
+  radiology.recordRadiologyEquipmentEvent(
+    tx(addMinutes(now, -60), dutyRadTech.id),
+    usEq.id,
+    {
+      type: "MAINTENANCE",
+      status: "COMPLETED",
+      result:
+        "Routine transducer surface inspection and cable acoustic integrity check.",
+    }
+  );
+  // Downtime and Return to service on Fluoroscopy Unit
+  radiology.recordRadiologyEquipmentEvent(
+    tx(addDays(now, -2), dutyRadTech.id),
+    flEq.id,
+    {
+      type: "DOWNTIME",
+      status: "COMPLETED",
+      result:
+        "Collimator blade motor calibration fault; manufacturer service engineer scheduled.",
+    }
+  );
+  radiology.recordRadiologyEquipmentEvent(
+    tx(addDays(now, -1), dutyRadTech.id),
+    flEq.id,
+    {
+      type: "RETURN_TO_SERVICE",
+      status: "COMPLETED",
+      result:
+        "Collimator motor replaced and beam alignment verified within tolerance.",
+    }
+  );
 
   // Current staff alerts make each audience mode demonstrable on first sign-in.
   alerts.sendAlert(tx(addMinutes(now, -55), opsManagers[0]!.id), {

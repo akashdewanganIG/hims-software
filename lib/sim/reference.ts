@@ -84,6 +84,12 @@ export const DEPARTMENTS: Array<{
     location: "Block D · Ground floor",
   },
   {
+    code: "RAD",
+    name: "Radiology & Imaging",
+    kind: "DIAGNOSTIC",
+    location: "Block D · First floor",
+  },
+  {
     code: "PHA",
     name: "Pharmacy",
     kind: "SUPPORT",
@@ -165,6 +171,25 @@ export const STAFF: StaffSeed[] = [
     role: "OPERATIONS_MANAGER",
     dept: "OPS",
     designation: "Patient Experience Lead",
+  },
+  {
+    first: "Kavya",
+    last: "Menon",
+    role: "RADIOLOGIST",
+    dept: "RAD",
+    designation: "Consultant Radiologist",
+    specialisation: "Cross-sectional Imaging",
+    qualification: "MD (Radiodiagnosis)",
+    primaryLogin: true,
+  },
+  {
+    first: "Rahul",
+    last: "Patil",
+    role: "RADIOLOGY_TECHNICIAN",
+    dept: "RAD",
+    designation: "Senior Radiology Technician",
+    qualification: "BSc Medical Imaging Technology",
+    primaryLogin: true,
   },
 
   {

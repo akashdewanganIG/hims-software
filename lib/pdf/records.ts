@@ -678,6 +678,26 @@ export function patientRecordPdf(record: PatientRecord, photo?: string) {
               )
           : [{ text: "No reported lab results.", style: "note" }]
       ),
+      section("Imaging studies and reports"),
+      dataTable(
+        [
+          { header: "Accession", width: 86 },
+          { header: "Study", width: 120 },
+          { header: "Date", width: 62 },
+          { header: "Status", width: 70 },
+          { header: "Report impression", width: "*" },
+        ],
+        record.imaging.map(study => [
+          study.accessionNumber,
+          `${study.procedure}\n${humanize(study.modality)}`,
+          formatDateShort(
+            study.finalisedAt ?? study.scheduledAt ?? study.orderedAt
+          ),
+          humanize(study.reportStatus ?? study.status),
+          study.impression ?? "Report pending",
+        ]),
+        "No imaging studies."
+      ),
       section("Bills"),
       dataTable(
         [

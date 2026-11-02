@@ -40,8 +40,21 @@ export function recordChecklist(
   record: MedicalRecord
 ): ChecklistItem[] {
   const encounter = find(db.encounters, record.encounterId);
+  const imagingOrders = db.radiologyOrders.filter(
+    order =>
+      order.status !== "CANCELLED" &&
+      (order.encounterId === record.encounterId ||
+        (record.admissionId && order.admissionId === record.admissionId))
+  );
+  const imagingComplete = imagingOrders.every(order =>
+    db.radiologyReports.some(
+      report =>
+        report.orderId === order.id &&
+        (report.status === "FINAL" || report.status === "AMENDED")
+    )
+  );
   if (record.recordType === "OPD_CASE_SHEET") {
-    return [
+    const checklist: ChecklistItem[] = [
       {
         key: "vitals",
         label: "Vitals recorded",
@@ -68,6 +81,13 @@ export function recordChecklist(
         done: encounter?.status === "CLOSED",
       },
     ];
+    if (imagingOrders.length)
+      checklist.push({
+        key: "radiology-reports",
+        label: "Final imaging reports filed",
+        done: imagingComplete,
+      });
+    return checklist;
   }
 
   const admission = find(db.admissions, record.admissionId);
@@ -86,7 +106,7 @@ export function recordChecklist(
       invoice.status !== "DRAFT" &&
       invoice.status !== "CANCELLED"
   );
-  return [
+  const checklist: ChecklistItem[] = [
     {
       key: "admission-note",
       label: "Admission note",
@@ -110,6 +130,13 @@ export function recordChecklist(
     },
     { key: "bill", label: "Final bill issued", done: finalBill },
   ];
+  if (imagingOrders.length)
+    checklist.push({
+      key: "radiology-reports",
+      label: "Final imaging reports filed",
+      done: imagingComplete,
+    });
+  return checklist;
 }
 
 export function checklistComplete(db: Database, record: MedicalRecord) {

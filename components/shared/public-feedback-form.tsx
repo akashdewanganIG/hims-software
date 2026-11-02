@@ -31,6 +31,7 @@ const LABELS: Record<FeedbackCategory, string> = {
   FRONT_DESK: "Front desk",
   PHARMACY: "Pharmacy",
   LAB: "Laboratory",
+  RADIOLOGY: "Radiology & imaging",
 };
 
 export function PublicFeedbackForm({ token }: { token: string }) {

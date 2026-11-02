@@ -16,6 +16,7 @@ export const MODULES = [
   "ehr",
   "pharmacy",
   "lab",
+  "radiology",
   "beds",
   "alerts",
   "operations",
@@ -26,6 +27,7 @@ export const MODULES = [
   "feedback",
   "analytics",
   "admin",
+  "integrations",
 ] as const;
 export type Module = (typeof MODULES)[number];
 
@@ -37,6 +39,7 @@ export const MODULE_LABEL: Record<Module, string> = {
   ehr: "EHR / EMR",
   pharmacy: "Pharmacy",
   lab: "Lab Services",
+  radiology: "Radiology & Imaging",
   beds: "Bed Management",
   alerts: "Alerts",
   operations: "Operations",
@@ -47,6 +50,7 @@ export const MODULE_LABEL: Record<Module, string> = {
   feedback: "Feedback",
   analytics: "Hospital Performance",
   admin: "Administration",
+  integrations: "API Integrations",
 };
 
 /** What each module covers — the permissions editor and architecture map. */
@@ -58,6 +62,8 @@ export const MODULE_DESCRIPTION: Record<Module, string> = {
   ehr: "Patient registration, demographics, documents and history.",
   pharmacy: "Prescription queue, dispensing, returns, stock and batches.",
   lab: "Test orders, sample collection, results and verification.",
+  radiology:
+    "Imaging orders, scheduling, safety checks, acquisition and reporting.",
   beds: "Bed board, reservations, housekeeping and occupancy.",
   alerts: "Send and receive categorised staff alerts.",
   operations: "Live command centre across departments.",
@@ -68,6 +74,8 @@ export const MODULE_DESCRIPTION: Record<Module, string> = {
   feedback: "Patient feedback, scores and follow-ups.",
   analytics: "Hospital performance trends and KPIs.",
   admin: "User management, roles, permissions and hospital data controls.",
+  integrations:
+    "Preview third-party API providers and routing without live calls.",
 };
 
 export const ACTIONS = [
@@ -91,6 +99,12 @@ export const ACTIONS = [
   "lab.collect",
   "lab.result",
   "lab.verify",
+  "radiology.order",
+  "radiology.schedule",
+  "radiology.perform",
+  "radiology.report",
+  "radiology.acknowledge",
+  "radiology.manage",
   "billing.collect",
   "billing.adjust",
   "billing.refund",
@@ -130,6 +144,12 @@ export const ACTION_MODULE: Record<Action, Module> = {
   "lab.collect": "lab",
   "lab.result": "lab",
   "lab.verify": "lab",
+  "radiology.order": "radiology",
+  "radiology.schedule": "radiology",
+  "radiology.perform": "radiology",
+  "radiology.report": "radiology",
+  "radiology.acknowledge": "radiology",
+  "radiology.manage": "radiology",
   "billing.collect": "billing",
   "billing.adjust": "billing",
   "billing.refund": "billing",
@@ -177,6 +197,19 @@ export const ACTION_INFO: Record<Action, { label: string; hint?: string }> = {
     label: "Verify and release reports",
     hint: "Releases results to clinicians",
   },
+  "radiology.order": { label: "Order diagnostic imaging" },
+  "radiology.schedule": { label: "Schedule and check in imaging patients" },
+  "radiology.perform": {
+    label: "Complete safety checks and acquire imaging studies",
+  },
+  "radiology.report": {
+    label: "Draft, finalise and amend radiology reports",
+    hint: "Releases diagnostic imaging findings",
+  },
+  "radiology.acknowledge": { label: "Acknowledge critical imaging findings" },
+  "radiology.manage": {
+    label: "Manage imaging procedures, equipment and quality records",
+  },
   "billing.collect": { label: "Collect payments and deposits" },
   "billing.adjust": {
     label: "Add charges and discounts, cancel bills",
@@ -214,6 +247,7 @@ export const LANDING_PAGES: Array<{
   { path: "/pharmacy", label: "Prescription queue", module: "pharmacy" },
   { path: "/pharmacy/inventory", label: "Pharmacy stock", module: "pharmacy" },
   { path: "/lab", label: "Lab worklist", module: "lab" },
+  { path: "/radiology", label: "Radiology worklist", module: "radiology" },
   { path: "/beds", label: "Bed board", module: "beds" },
   { path: "/alerts", label: "Alerts", module: "alerts" },
   { path: "/operations", label: "Operations centre", module: "operations" },
@@ -225,6 +259,7 @@ export const LANDING_PAGES: Array<{
   { path: "/feedback", label: "Feedback", module: "feedback" },
   { path: "/analytics", label: "Hospital performance", module: "analytics" },
   { path: "/admin/users", label: "User management", module: "admin" },
+  { path: "/integrations", label: "API integrations", module: "integrations" },
 ];
 
 const MODULE_SET = new Set<string>(MODULES);
@@ -290,6 +325,7 @@ export const DEFAULT_ROLES: Record<SystemRole, RoleDefinition> = {
       "opd",
       "ipd",
       "ehr",
+      "radiology",
       "beds",
       "billing",
       "complaints",
@@ -302,6 +338,7 @@ export const DEFAULT_ROLES: Record<SystemRole, RoleDefinition> = {
       "enquiry.manage",
       "appointment.book",
       "appointment.checkin",
+      "radiology.schedule",
       "ipd.admit",
       "billing.collect",
       "complaint.log",
@@ -319,6 +356,7 @@ export const DEFAULT_ROLES: Record<SystemRole, RoleDefinition> = {
       "ipd",
       "ehr",
       "lab",
+      "radiology",
       "pharmacy",
       "beds",
       "mrd",
@@ -334,6 +372,8 @@ export const DEFAULT_ROLES: Record<SystemRole, RoleDefinition> = {
       "ipd.transfer",
       "ipd.discharge",
       "lab.order",
+      "radiology.order",
+      "radiology.acknowledge",
     ],
     homePath: "/opd",
   }),
@@ -380,6 +420,22 @@ export const DEFAULT_ROLES: Record<SystemRole, RoleDefinition> = {
     actions: ["lab.order", "lab.collect", "lab.result", "lab.verify"],
     homePath: "/lab",
   }),
+  RADIOLOGIST: defineRole({
+    name: "Radiologist",
+    description:
+      "Diagnostic imaging review, reporting, amendments and critical-result communication.",
+    modules: ["dashboard", "ehr", "radiology", "mrd"],
+    actions: ["radiology.order", "radiology.report", "radiology.acknowledge"],
+    homePath: "/radiology",
+  }),
+  RADIOLOGY_TECHNICIAN: defineRole({
+    name: "Radiology Technician",
+    description:
+      "Imaging scheduling, patient safety preparation and study acquisition.",
+    modules: ["dashboard", "ehr", "radiology", "wfm"],
+    actions: ["radiology.schedule", "radiology.perform"],
+    homePath: "/radiology",
+  }),
   BILLING_EXECUTIVE: defineRole({
     name: "Billing Executive",
     description:
@@ -391,6 +447,7 @@ export const DEFAULT_ROLES: Record<SystemRole, RoleDefinition> = {
       "ipd",
       "pharmacy",
       "lab",
+      "radiology",
       "billing",
       "complaints",
     ],
@@ -419,6 +476,7 @@ export const DEFAULT_ROLES: Record<SystemRole, RoleDefinition> = {
       "enquiry",
       "opd",
       "ipd",
+      "radiology",
       "beds",
       "operations",
       "wfm",

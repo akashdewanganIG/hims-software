@@ -82,6 +82,21 @@ import {
   verifyResults,
 } from "../domain/lab";
 import {
+  acknowledgeRadiologyCommunication,
+  amendRadiologyReport,
+  cancelRadiologyOrder,
+  checkInRadiologyOrder,
+  completeRadiologyStudy,
+  createRadiologyOrders,
+  finaliseRadiologyReport,
+  recordRadiologyCommunication,
+  recordRadiologyEquipmentEvent,
+  saveRadiologyReport,
+  saveRadiologySafety,
+  scheduleRadiologyOrder,
+  startRadiologyStudy,
+} from "../domain/radiology";
+import {
   addDocument,
   archiveRecord,
   logRecordView,
@@ -176,6 +191,8 @@ import {
   OPD_DISPOSITIONS,
   PAYMENT_METHODS,
   PRIORITIES,
+  RADIOLOGY_CRITICALITIES,
+  RADIOLOGY_PRIORITIES,
   ROSTER_STATUSES,
   ROUTES,
   STAFF_ROLES,
@@ -653,6 +670,173 @@ export const OPERATIONS = {
     allow: ["lab.order", "lab.collect", "lab.result"],
     input: z.object({ orderId: id, reason: text(1000) }),
     run: (tx, i) => cancelLabOrder(tx, i.orderId, i.reason),
+  }),
+
+  /* Radiology ------------------------------------------------------ */
+  "radiology.order": op({
+    label: "Order diagnostic imaging",
+    allow: ["radiology.order", "opd.consult", "ipd.order"],
+    input: z.object({
+      patientId: id,
+      encounterId: optionalId,
+      admissionId: optionalId,
+      procedureIds: z.array(id).min(1).max(12),
+      priority: z.enum(RADIOLOGY_PRIORITIES),
+      clinicalIndication: text(1000),
+      provisionalDiagnosis: text(1000),
+      externalReferrer: line(200).optional(),
+    }),
+    run: (tx, i) =>
+      createRadiologyOrders(tx, {
+        ...i,
+        encounterId: i.encounterId || undefined,
+        admissionId: i.admissionId || undefined,
+      }),
+  }),
+  "radiology.schedule": op({
+    label: "Schedule imaging study",
+    allow: ["radiology.schedule"],
+    input: z.object({ orderId: id, equipmentId: id, scheduledAt: dateTime }),
+    run: (tx, i) =>
+      scheduleRadiologyOrder(tx, i.orderId, i.equipmentId, i.scheduledAt),
+  }),
+  "radiology.checkIn": op({
+    label: "Check in imaging patient",
+    allow: ["radiology.schedule", "radiology.perform"],
+    input: z.object({ orderId: id }),
+    run: (tx, i) => checkInRadiologyOrder(tx, i.orderId),
+  }),
+  "radiology.safety": op({
+    label: "Complete imaging safety checklist",
+    allow: ["radiology.perform"],
+    input: z.object({
+      orderId: id,
+      identityVerified: z.boolean(),
+      preparationConfirmed: z.boolean(),
+      consentConfirmed: z.boolean(),
+      allergiesReviewed: z.boolean(),
+      renalFunctionReviewed: z.boolean(),
+      pregnancyStatus: z.enum([
+        "NOT_APPLICABLE",
+        "NOT_PREGNANT",
+        "PREGNANT",
+        "UNKNOWN",
+      ]),
+      mriImplantScreeningComplete: z.boolean(),
+      pcPndtFormComplete: z.boolean(),
+      pcPndtIndication: line(500).optional(),
+      lmp: optionalDate,
+      contrastAgent: line(120).optional(),
+      contrastDose: line(80).optional(),
+      contrastLot: line(80).optional(),
+      notes: text(2000).optional(),
+    }),
+    run: (tx, { orderId, ...i }) =>
+      saveRadiologySafety(tx, orderId, { ...i, lmp: i.lmp || undefined }),
+  }),
+  "radiology.startStudy": op({
+    label: "Start imaging acquisition",
+    allow: ["radiology.perform"],
+    input: z.object({ orderId: id }),
+    run: (tx, i) => startRadiologyStudy(tx, i.orderId),
+  }),
+  "radiology.completeStudy": op({
+    label: "Complete imaging acquisition",
+    allow: ["radiology.perform"],
+    input: z.object({
+      studyId: id,
+      accepted: z.boolean(),
+      rejectionReason: text(1000).optional(),
+      seriesCount: z.number().int().min(0).max(10000),
+      imageCount: z.number().int().min(0).max(100000),
+      doseMeasurements: z
+        .array(
+          z.object({
+            label: line(80),
+            value: z.number().finite().min(0),
+            unit: line(40),
+          })
+        )
+        .max(20)
+        .optional(),
+      contrastAdministered: z.boolean().optional(),
+      contrastReaction: text(1000).optional(),
+    }),
+    run: (tx, { studyId, ...i }) => completeRadiologyStudy(tx, studyId, i),
+  }),
+  "radiology.saveReport": op({
+    label: "Save radiology report draft",
+    allow: ["radiology.report"],
+    input: z.object({
+      orderId: id,
+      findings: text(10000),
+      impression: text(4000),
+      recommendations: text(4000).optional(),
+      criticality: z.enum(RADIOLOGY_CRITICALITIES),
+    }),
+    run: (tx, { orderId, ...i }) => saveRadiologyReport(tx, orderId, i),
+  }),
+  "radiology.communicate": op({
+    label: "Record critical imaging communication",
+    allow: ["radiology.report"],
+    input: z.object({
+      reportId: id,
+      recipientId: id,
+      method: z.enum(["PHONE", "IN_PERSON", "SECURE_MESSAGE"]),
+      outcome: line(500),
+      notes: text(2000).optional(),
+    }),
+    run: (tx, { reportId, ...i }) =>
+      recordRadiologyCommunication(tx, reportId, i),
+  }),
+  "radiology.finaliseReport": op({
+    label: "Release radiology report",
+    allow: ["radiology.report"],
+    input: z.object({ reportId: id, preliminary: z.boolean().optional() }),
+    run: (tx, i) =>
+      finaliseRadiologyReport(tx, i.reportId, Boolean(i.preliminary)),
+  }),
+  "radiology.amendReport": op({
+    label: "Amend final radiology report",
+    allow: ["radiology.report"],
+    input: z.object({
+      reportId: id,
+      findings: text(10000),
+      impression: text(4000),
+      recommendations: text(4000).optional(),
+      reason: text(1000),
+    }),
+    run: (tx, { reportId, ...i }) => amendRadiologyReport(tx, reportId, i),
+  }),
+  "radiology.acknowledge": op({
+    label: "Acknowledge critical imaging finding",
+    allow: ["radiology.acknowledge"],
+    input: z.object({ communicationId: id }),
+    run: (tx, i) => acknowledgeRadiologyCommunication(tx, i.communicationId),
+  }),
+  "radiology.cancel": op({
+    label: "Cancel radiology order",
+    allow: ["radiology.order", "radiology.schedule", "radiology.perform"],
+    input: z.object({ orderId: id, reason: text(1000) }),
+    run: (tx, i) => cancelRadiologyOrder(tx, i.orderId, i.reason),
+  }),
+  "radiology.equipmentEvent": op({
+    label: "Record imaging equipment quality event",
+    allow: ["radiology.manage"],
+    input: z.object({
+      equipmentId: id,
+      type: z.enum([
+        "QA",
+        "CALIBRATION",
+        "MAINTENANCE",
+        "DOWNTIME",
+        "RETURN_TO_SERVICE",
+      ]),
+      status: z.enum(["DUE", "IN_PROGRESS", "COMPLETED", "FAILED"]),
+      result: text(2000).optional(),
+    }),
+    run: (tx, { equipmentId, ...i }) =>
+      recordRadiologyEquipmentEvent(tx, equipmentId, i),
   }),
 
   /* Pharmacy ------------------------------------------------------- */

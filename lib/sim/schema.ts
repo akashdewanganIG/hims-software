@@ -38,6 +38,8 @@ export const SYSTEM_ROLES = [
   "NURSE",
   "PHARMACIST",
   "LAB_TECHNICIAN",
+  "RADIOLOGIST",
+  "RADIOLOGY_TECHNICIAN",
   "BILLING_EXECUTIVE",
   "MRD_STAFF",
   "OPERATIONS_MANAGER",
@@ -301,6 +303,59 @@ export const RESULT_FLAGS = [
 ] as const;
 export type ResultFlag = (typeof RESULT_FLAGS)[number];
 
+export const RADIOLOGY_MODALITIES = [
+  "XRAY",
+  "CT",
+  "MRI",
+  "ULTRASOUND",
+  "MAMMOGRAPHY",
+  "FLUOROSCOPY",
+  "INTERVENTIONAL",
+  "DEXA",
+] as const;
+export type RadiologyModality = (typeof RADIOLOGY_MODALITIES)[number];
+
+export const RADIOLOGY_PRIORITIES = ["ROUTINE", "URGENT", "STAT"] as const;
+export type RadiologyPriority = (typeof RADIOLOGY_PRIORITIES)[number];
+
+export const RADIOLOGY_STATUSES = [
+  "ORDERED",
+  "SCHEDULED",
+  "CHECKED_IN",
+  "READY",
+  "IN_PROGRESS",
+  "ACQUIRED",
+  "REPORT_DRAFT",
+  "PRELIMINARY",
+  "FINAL",
+  "AMENDED",
+  "CANCELLED",
+] as const;
+export type RadiologyStatus = (typeof RADIOLOGY_STATUSES)[number];
+
+export const RADIOLOGY_EQUIPMENT_STATUSES = [
+  "ACTIVE",
+  "MAINTENANCE",
+  "OUT_OF_SERVICE",
+] as const;
+export type RadiologyEquipmentStatus =
+  (typeof RADIOLOGY_EQUIPMENT_STATUSES)[number];
+
+export const RADIOLOGY_REPORT_STATUSES = [
+  "DRAFT",
+  "PRELIMINARY",
+  "FINAL",
+  "AMENDED",
+] as const;
+export type RadiologyReportStatus = (typeof RADIOLOGY_REPORT_STATUSES)[number];
+
+export const RADIOLOGY_CRITICALITIES = [
+  "ROUTINE",
+  "SIGNIFICANT",
+  "CRITICAL",
+] as const;
+export type RadiologyCriticality = (typeof RADIOLOGY_CRITICALITIES)[number];
+
 export const INVOICE_STATUSES = [
   "DRAFT",
   "PENDING",
@@ -315,6 +370,7 @@ export const CHARGE_CATEGORIES = [
   "REGISTRATION",
   "CONSULTATION",
   "LAB",
+  "RADIOLOGY",
   "PHARMACY",
   "ROOM",
   "NURSING",
@@ -327,6 +383,7 @@ export const CHARGE_SOURCES = [
   "APPOINTMENT",
   "REGISTRATION",
   "LAB_ORDER_ITEM",
+  "RADIOLOGY_ORDER",
   "PHARMACY_TXN",
   "BED_ASSIGNMENT",
   "ADMISSION",
@@ -352,6 +409,7 @@ export const DOCUMENT_KINDS = [
   "CONSENT_FORM",
   "DISCHARGE_SUMMARY",
   "LAB_REPORT",
+  "RADIOLOGY_REPORT",
   "REFERRAL_LETTER",
   "EXTERNAL_REPORT",
   "ID_PROOF",
@@ -412,6 +470,7 @@ export const FEEDBACK_CATEGORIES = [
   "FRONT_DESK",
   "PHARMACY",
   "LAB",
+  "RADIOLOGY",
 ] as const;
 export type FeedbackCategory = (typeof FEEDBACK_CATEGORIES)[number];
 
@@ -921,6 +980,150 @@ export interface LabResult {
 }
 
 /* ------------------------------------------------------------------ */
+/* Radiology & imaging                                                 */
+/* ------------------------------------------------------------------ */
+
+export interface RadiologyProcedure {
+  id: ID;
+  code: string;
+  name: string;
+  modality: RadiologyModality;
+  bodyPart: string;
+  price: number;
+  durationMinutes: number;
+  turnaroundHours: number;
+  preparation: string;
+  requiresContrast: boolean;
+  requiresConsent: boolean;
+  requiresPregnancyScreening: boolean;
+  requiresPcPndt: boolean;
+  recordsRadiationDose: boolean;
+  active: boolean;
+}
+
+export interface RadiologyEquipment extends Timestamps {
+  id: ID;
+  code: string;
+  name: string;
+  modality: RadiologyModality;
+  room: string;
+  manufacturer: string;
+  model: string;
+  serialNumber: string;
+  status: RadiologyEquipmentStatus;
+  portable: boolean;
+  aerbLicenceNumber?: string;
+  aerbLicenceValidUntil?: ISODate;
+  lastQaAt?: ISODate;
+  nextQaDue?: ISODate;
+}
+
+export interface RadiologyOrder extends Timestamps {
+  id: ID;
+  accessionNumber: string;
+  batchId?: ID;
+  patientId: ID;
+  encounterId?: ID;
+  admissionId?: ID;
+  source: "OPD" | "IPD" | "EXTERNAL";
+  externalReferrer?: string;
+  procedureId: ID;
+  orderedById: ID;
+  orderedAt: ISODateTime;
+  priority: RadiologyPriority;
+  clinicalIndication: string;
+  provisionalDiagnosis: string;
+  status: RadiologyStatus;
+  scheduledAt?: ISODateTime;
+  equipmentId?: ID;
+  checkedInAt?: ISODateTime;
+  readyAt?: ISODateTime;
+  cancelledAt?: ISODateTime;
+  cancelReason?: string;
+}
+
+export interface RadiologySafetyAssessment extends Timestamps {
+  id: ID;
+  orderId: ID;
+  identityVerified: boolean;
+  preparationConfirmed: boolean;
+  consentConfirmed: boolean;
+  allergiesReviewed: boolean;
+  renalFunctionReviewed: boolean;
+  pregnancyStatus: "NOT_APPLICABLE" | "NOT_PREGNANT" | "PREGNANT" | "UNKNOWN";
+  mriImplantScreeningComplete: boolean;
+  pcPndtFormComplete: boolean;
+  pcPndtIndication?: string;
+  lmp?: ISODate;
+  contrastAgent?: string;
+  contrastDose?: string;
+  contrastLot?: string;
+  notes: string;
+  completedById: ID;
+  completedAt: ISODateTime;
+}
+
+export interface RadiologyStudy extends Timestamps {
+  id: ID;
+  orderId: ID;
+  attempt: number;
+  studyInstanceUid: string;
+  equipmentId: ID;
+  performedById: ID;
+  startedAt: ISODateTime;
+  completedAt?: ISODateTime;
+  accepted: boolean;
+  rejectionReason?: string;
+  seriesCount: number;
+  imageCount: number;
+  doseMeasurements: Array<{ label: string; value: number; unit: string }>;
+  contrastAdministered: boolean;
+  contrastReaction?: string;
+  pacsStatus: "PENDING" | "AVAILABLE" | "FAILED";
+  pacsStudyUrl?: string;
+}
+
+export interface RadiologyReportVersion {
+  id: ID;
+  orderId: ID;
+  studyId: ID;
+  version: number;
+  status: RadiologyReportStatus;
+  findings: string;
+  impression: string;
+  recommendations: string;
+  criticality: RadiologyCriticality;
+  radiologistId: ID;
+  createdAt: ISODateTime;
+  finalisedAt?: ISODateTime;
+  supersedesId?: ID;
+}
+
+export interface RadiologyCommunication {
+  id: ID;
+  reportId: ID;
+  recipientId: ID;
+  method: "PHONE" | "IN_PERSON" | "SECURE_MESSAGE";
+  outcome: string;
+  communicatedById: ID;
+  communicatedAt: ISODateTime;
+  acknowledgedById?: ID;
+  acknowledgedAt?: ISODateTime;
+  notes: string;
+}
+
+export interface RadiologyEquipmentEvent {
+  id: ID;
+  equipmentId: ID;
+  type: "QA" | "CALIBRATION" | "MAINTENANCE" | "DOWNTIME" | "RETURN_TO_SERVICE";
+  status: "DUE" | "IN_PROGRESS" | "COMPLETED" | "FAILED";
+  scheduledAt?: ISODateTime;
+  completedAt?: ISODateTime;
+  recordedById: ID;
+  result: string;
+}
+
+/* ------------------------------------------------------------------ */
 /* Billing                                                             */
 /* ------------------------------------------------------------------ */
 
@@ -1174,6 +1377,7 @@ export type EntityType =
   | "prescription"
   | "pharmacy"
   | "lab"
+  | "radiology"
   | "invoice"
   | "mrd"
   | "complaint"
@@ -1284,6 +1488,14 @@ export interface Database {
   labOrders: LabOrder[];
   labOrderItems: LabOrderItem[];
   labResults: LabResult[];
+  radiologyProcedures: RadiologyProcedure[];
+  radiologyEquipment: RadiologyEquipment[];
+  radiologyOrders: RadiologyOrder[];
+  radiologySafetyAssessments: RadiologySafetyAssessment[];
+  radiologyStudies: RadiologyStudy[];
+  radiologyReports: RadiologyReportVersion[];
+  radiologyCommunications: RadiologyCommunication[];
+  radiologyEquipmentEvents: RadiologyEquipmentEvent[];
   invoices: Invoice[];
   invoiceItems: InvoiceItem[];
   payments: Payment[];
@@ -1304,7 +1516,7 @@ export interface Database {
 
 export type TableName = Exclude<keyof Database, "meta">;
 
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
 
 export function emptyDatabase(now: ISODateTime): Database {
   return {
@@ -1335,6 +1547,14 @@ export function emptyDatabase(now: ISODateTime): Database {
     labOrders: [],
     labOrderItems: [],
     labResults: [],
+    radiologyProcedures: [],
+    radiologyEquipment: [],
+    radiologyOrders: [],
+    radiologySafetyAssessments: [],
+    radiologyStudies: [],
+    radiologyReports: [],
+    radiologyCommunications: [],
+    radiologyEquipmentEvents: [],
     invoices: [],
     invoiceItems: [],
     payments: [],

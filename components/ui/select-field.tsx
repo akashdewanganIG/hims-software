@@ -45,8 +45,15 @@ function readOptions(children: React.ReactNode): SelectOption[] {
     if (child.type === "option") {
       const props =
         child.props as React.OptionHTMLAttributes<HTMLOptionElement>;
+      const value =
+        props.value !== undefined
+          ? String(props.value)
+          : typeof props.children === "string" ||
+              typeof props.children === "number"
+            ? String(props.children)
+            : "";
       options.push({
-        value: String(props.value ?? ""),
+        value,
         label: props.children,
         disabled: Boolean(props.disabled),
       });

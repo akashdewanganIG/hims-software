@@ -1,0 +1,1 @@
+ALTER TYPE "public"."EntityType" ADD VALUE 'radiology' BEFORE 'invoice';

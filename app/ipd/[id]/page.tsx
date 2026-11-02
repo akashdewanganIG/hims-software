@@ -10,6 +10,7 @@ import {
   CheckCheck,
   DoorOpen,
   Flask,
+  ImageSquare,
   NotePencil,
   Pill,
   Plus,
@@ -50,6 +51,7 @@ import {
 import { DischargePanel } from "@/features/ipd/discharge-panel";
 import { LabOrderForm } from "@/features/opd/lab-order-form";
 import { PrescriptionBuilder } from "@/features/opd/prescription-builder";
+import { RadiologyOrderDialog } from "@/features/radiology/order-dialog";
 import { useAction } from "@/lib/api/client";
 import {
   formatDate,
@@ -584,6 +586,7 @@ function Orders({ detail }: { detail: AdmissionDetail }) {
   const [careOpen, setCareOpen] = React.useState(false);
   const [showRx, setShowRx] = React.useState(false);
   const [showLab, setShowLab] = React.useState(false);
+  const [imagingOpen, setImagingOpen] = React.useState(false);
   const live =
     detail.admission.status === "ADMITTED" ||
     detail.admission.status === "ACTIVE" ||
@@ -637,15 +640,29 @@ function Orders({ detail }: { detail: AdmissionDetail }) {
         <Panel
           title="Investigations"
           actions={
-            live && can("lab.order") && !showLab ? (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setShowLab(true)}
-              >
-                <Flask className="size-4" />
-                Order tests
-              </Button>
+            live ? (
+              <>
+                {can("lab.order") && !showLab ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowLab(true)}
+                  >
+                    <Flask className="size-4" />
+                    Order tests
+                  </Button>
+                ) : null}
+                {can("radiology.order") ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setImagingOpen(true)}
+                  >
+                    <ImageSquare className="size-4" />
+                    Order imaging
+                  </Button>
+                ) : null}
+              </>
             ) : null
           }
         >
@@ -759,6 +776,20 @@ function Orders({ detail }: { detail: AdmissionDetail }) {
         open={careOpen}
         onOpenChange={setCareOpen}
         admissionId={detail.admission.id}
+      />
+      <RadiologyOrderDialog
+        open={imagingOpen}
+        onOpenChange={setImagingOpen}
+        encounterId={detail.encounterId}
+        admissionId={detail.admission.id}
+        initialPatient={{
+          id: detail.patient.id,
+          uhid: detail.patient.uhid,
+          name: `${detail.patient.firstName} ${detail.patient.lastName}`,
+          phone: detail.patient.phone,
+          age: detail.patient.age,
+          gender: detail.patient.gender,
+        }}
       />
     </div>
   );
