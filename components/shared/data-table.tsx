@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 
 import {
   ArrowDownIcon,
@@ -23,6 +24,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useFreshIds } from "@/lib/fresh";
+import { downloadStyledWorkbook } from "@/lib/spreadsheet-export";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
@@ -67,6 +69,8 @@ export function DataTable<T>({
   initialSort,
   toolbar,
   exportName,
+  exportLabel = "Export",
+  exportPlacement = "page",
 }: {
   columns: Column<T>[];
   rows: T[];
@@ -81,12 +85,24 @@ export function DataTable<T>({
   toolbar?: React.ReactNode;
   /** Base file name for the filtered view export. */
   exportName?: string;
+  /** Accessible button label; useful when a page has more than one table. */
+  exportLabel?: string;
+  /** Page actions are the default, matching the primary create/new controls. */
+  exportPlacement?: "page" | "toolbar" | "hidden";
 }) {
   const [hidden, setHidden] = React.useState<Set<string>>(
     () => new Set(columns.filter(c => c.defaultHidden).map(c => c.id))
   );
   const [sort, setSort] = React.useState(initialSort);
   const [page, setPage] = React.useState(1);
+  const [pageActions, setPageActions] = React.useState<HTMLElement | null>(
+    null
+  );
+
+  React.useEffect(() => {
+    if (exportPlacement !== "page") return;
+    setPageActions(document.querySelector<HTMLElement>("[data-page-actions]"));
+  }, [exportPlacement]);
 
   const visible = columns.filter(c => !hidden.has(c.id));
 
@@ -141,10 +157,6 @@ export function DataTable<T>({
       return;
     }
     try {
-      const XLSX = await import("xlsx");
-      const sheet = XLSX.utils.json_to_sheet(exportRows(), {
-        header: exportColumns.map(column => column.header),
-      });
       const routeName = window.location.pathname
         .split("/")
         .filter(Boolean)
@@ -154,6 +166,10 @@ export function DataTable<T>({
         "-"
       );
       if (format === "csv") {
+        const XLSX = await import("xlsx");
+        const sheet = XLSX.utils.json_to_sheet(exportRows(), {
+          header: exportColumns.map(column => column.header),
+        });
         const csv = `\uFEFF${XLSX.utils.sheet_to_csv(sheet)}`;
         const url = URL.createObjectURL(
           new Blob([csv], { type: "text/csv;charset=utf-8" })
@@ -164,9 +180,26 @@ export function DataTable<T>({
         link.click();
         URL.revokeObjectURL(url);
       } else {
-        const book = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(book, sheet, "Filtered view");
-        XLSX.writeFile(book, `${name}.xlsx`, { compression: true });
+        const title =
+          exportName
+            ?.replace(/[-_]+/g, " ")
+            .replace(/\b\w/g, letter => letter.toUpperCase()) ||
+          document.querySelector("h1")?.textContent?.trim() ||
+          "HIMS export";
+        await downloadStyledWorkbook({
+          fileName: name,
+          title,
+          columns: exportColumns.map(column => ({ header: column.header })),
+          rows: sorted.map(row =>
+            exportColumns.map(column =>
+              safeSpreadsheetValue(
+                column.exportValue?.(row) ??
+                  column.sortValue?.(row) ??
+                  reactNodeText(column.cell(row))
+              )
+            )
+          ),
+        });
       }
       toast.success(
         `Exported ${sorted.length} ${sorted.length === 1 ? "row" : "rows"}.`
@@ -187,38 +220,46 @@ export function DataTable<T>({
     );
   };
 
+  const exportMenu =
+    exportPlacement === "hidden" ? null : (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            className="shrink-0 self-end md:self-auto"
+            disabled={isLoading || sorted.length === 0}
+          >
+            <Download className="size-4" />
+            {exportLabel}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-60">
+          <DropdownMenuLabel>
+            Current filtered view ({sorted.length})
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => void downloadExport("xlsx")}>
+            Designed Excel workbook (.xlsx)
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => void downloadExport("csv")}>
+            Plain data file (.csv)
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+
   return (
     <div className="min-w-0">
+      {pageActions && exportPlacement === "page"
+        ? createPortal(exportMenu, pageActions)
+        : null}
       {toolbar || columns.length ? (
         <div className="flex flex-col gap-2 border-b border-border px-3 py-2.5 md:flex-row md:items-center">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
             {toolbar}
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                className="shrink-0 self-end md:self-auto"
-                disabled={isLoading || sorted.length === 0}
-              >
-                <Download className="size-4" />
-                Export
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuLabel>
-                Current filtered view ({sorted.length})
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => void downloadExport("xlsx")}>
-                Excel workbook (.xlsx)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => void downloadExport("csv")}>
-                CSV (.csv)
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {exportPlacement === "toolbar" ? exportMenu : null}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button

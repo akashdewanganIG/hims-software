@@ -47,11 +47,12 @@ export function PageHeader({
           </h1>
           {subtitle ? <InfoHint label={subtitle} /> : null}
         </div>
-        {actions ? (
-          <div className="grid w-full min-w-0 shrink-0 grid-cols-1 items-center gap-2 sm:w-auto sm:grid-cols-none sm:flex sm:flex-wrap sm:justify-end [&>*]:min-w-0">
-            {actions}
-          </div>
-        ) : null}
+        <div
+          data-page-actions
+          className="grid w-full min-w-0 shrink-0 grid-cols-1 items-center gap-2 empty:hidden sm:w-auto sm:grid-cols-none sm:flex sm:flex-wrap sm:justify-end [&>*]:min-w-0"
+        >
+          {actions}
+        </div>
       </div>
     </header>
   );

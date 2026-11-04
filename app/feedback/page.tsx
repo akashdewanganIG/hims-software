@@ -440,6 +440,8 @@ export default function FeedbackPage() {
         <DataTable
           columns={requestColumns}
           rows={requests}
+          exportName="feedback-requests"
+          exportLabel="Export requests"
           keyOf={row => row.id}
           isLoading={requestsLoading}
           initialSort={{ id: "created", direction: "desc" }}
@@ -472,6 +474,8 @@ export default function FeedbackPage() {
         <DataTable
           columns={columns}
           rows={rows}
+          exportName="patient-feedback"
+          exportLabel="Export feedback"
           keyOf={r => r.id}
           isLoading={isLoading}
           initialSort={{ id: "date", direction: "desc" }}
