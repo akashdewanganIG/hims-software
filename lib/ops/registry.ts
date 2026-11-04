@@ -122,7 +122,9 @@ import {
   registerPatient,
   removePatient,
   removePatientPhoto,
+  removePatientSignature,
   setPatientPhoto,
+  setPatientSignature,
   updatePatient,
 } from "../domain/patients";
 import {
@@ -410,6 +412,33 @@ export const OPERATIONS = {
     allow: ["patient.edit"],
     input: z.object({ patientId: id }),
     run: (tx, i) => removePatientPhoto(tx, i.patientId),
+  }),
+  "patient.setSignature": op({
+    label: "Capture reusable patient signature",
+    allow: ["patient.edit"],
+    input: z.object({
+      patientId: id,
+      signature: imageUpload,
+      source: z.enum(["DRAWN", "OCR_SCAN"]),
+      signerType: z.enum(["PATIENT", "ATTENDANT"]),
+      relationship: line(80).optional(),
+      reuseAuthorised: z.literal(true),
+    }),
+    run: (tx, i) =>
+      setPatientSignature(
+        tx,
+        i.patientId,
+        i.signature,
+        i.source,
+        i.signerType,
+        i.relationship
+      ),
+  }),
+  "patient.removeSignature": op({
+    label: "Remove reusable patient signature",
+    allow: ["patient.edit"],
+    input: z.object({ patientId: id }),
+    run: (tx, i) => removePatientSignature(tx, i.patientId),
   }),
   "patient.remove": op({
     label: "Delete a registration made in error",

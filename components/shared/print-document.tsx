@@ -30,12 +30,15 @@ export function PrintDocument({
   children,
   footer,
   pdf,
+  patientSignature,
 }: {
   title: string;
   reference: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
   pdf?: { fileName: string; build: () => TDocumentDefinitions };
+  /** Authorised reusable signature, shown as an administrative acknowledgement. */
+  patientSignature?: string;
 }) {
   const router = useRouter();
   const { user } = useSession();
@@ -139,7 +142,25 @@ export function PrintDocument({
         </header>
         <div className="mt-5 space-y-5">{children}</div>
         <footer className="mt-10 flex items-end justify-between gap-6 border-t border-neutral-300 pt-4 text-xs text-neutral-600">
-          <div>{footer}</div>
+          <div className="flex items-end gap-8">
+            {patientSignature ? (
+              <div className="w-40">
+                {/* eslint-disable-next-line @next/next/no-img-element -- stored data URL */}
+                <img
+                  src={patientSignature}
+                  alt="Patient or attendant signature on file"
+                  className="h-12 max-w-40 object-contain"
+                />
+                <p className="border-t border-neutral-400 pt-1 font-medium text-neutral-800">
+                  Patient / attendant signature on file
+                </p>
+                <p className="mt-1 text-[9px]">
+                  Authorised reuse; not a cryptographic digital signature.
+                </p>
+              </div>
+            ) : null}
+            <div>{footer}</div>
+          </div>
           <p>
             Generated {formatDateTime(new Date())} · Demo data — not a medical
             or tax document

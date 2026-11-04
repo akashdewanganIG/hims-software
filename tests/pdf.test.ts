@@ -135,6 +135,18 @@ test("a long record breaks across pages and keeps a photo", async () => {
   assert.ok(pages >= 2, `expected several pages, got ${pages}`);
 });
 
+test("authorised patient signatures render with the administrative disclaimer", async () => {
+  const patient = h.db.patients[0]!;
+  const record = read("patients.record", { id: patient.id });
+  const doc = patientRecordPdf(record, undefined, PHOTO);
+  assert.match(
+    JSON.stringify(doc.content),
+    /not a cryptographic digital signature/i
+  );
+  const pdf = await render(doc);
+  assert.ok(pdf.length > 8_000);
+});
+
 test("a public document QR renders in the bottom-right PDF footer", async () => {
   const bill = h.db.invoices.find(i => i.status === "PAID")!;
   const doc = withShareQr(

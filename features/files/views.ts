@@ -20,6 +20,7 @@ const OWNER_MODULES: Record<FileOwner, readonly Module[]> = {
     "beds",
     "enquiry",
   ],
+  PATIENT_SIGNATURE: ["ehr", "ipd", "billing", "mrd"],
   DOCUMENT: ["ehr", "mrd", "opd", "ipd"],
   STAFF_PHOTO: ["wfm", "admin"],
   COMPLAINT: ["complaints"],

@@ -122,6 +122,7 @@ export interface MrdDetail {
   record: MedicalRecord;
   checklist: ChecklistItem[];
   patient: PatientRef;
+  signatureFileId?: ID;
   department: string;
   doctor: string;
   encounter: {
@@ -175,6 +176,7 @@ export function medicalRecordView(
     record,
     checklist: recordChecklist(db, record),
     patient: patientRef(db, record.patientId, now)!,
+    signatureFileId: fileOf(db, "PATIENT_SIGNATURE", record.patientId)?.id,
     department: departmentName(db, record.departmentId),
     doctor: staffName(getStaff(db, record.attendingDoctorId)),
     encounter: {

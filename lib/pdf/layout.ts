@@ -96,12 +96,15 @@ export function recordDocument({
   reference,
   content,
   signature,
+  patientSignature,
 }: {
   title: string;
   reference: string;
   content: Content[];
   /** Signature block closing the document (signatory, department). */
   signature?: string[];
+  /** Explicitly authorised reusable patient/attendant signature image. */
+  patientSignature?: { image: string; label?: string };
 }): TDocumentDefinitions {
   const generated = formatDateTime(new Date());
   return {
@@ -231,42 +234,84 @@ export function recordDocument({
       );
     },
     content: [
-      ...(signature?.length ? keepLastSection(content) : content),
-      ...(signature?.length
+      ...(signature?.length || patientSignature
+        ? keepLastSection(content)
+        : content),
+      ...(signature?.length || patientSignature
         ? [
             {
               unbreakable: true,
               margin: [0, 28, 0, 0] as [number, number, number, number],
               columns: [
-                { width: "*", text: "" },
-                {
-                  width: 180,
-                  stack: [
-                    {
-                      canvas: [
+                patientSignature
+                  ? {
+                      width: 180,
+                      stack: [
                         {
-                          type: "line" as const,
-                          x1: 0,
-                          y1: 0,
-                          x2: 180,
-                          y2: 0,
-                          lineWidth: 0.7,
-                          lineColor: MUTED,
+                          image: patientSignature.image,
+                          fit: [160, 48],
+                          alignment: "left" as const,
+                        },
+                        {
+                          canvas: [
+                            {
+                              type: "line" as const,
+                              x1: 0,
+                              y1: 2,
+                              x2: 180,
+                              y2: 2,
+                              lineWidth: 0.7,
+                              lineColor: MUTED,
+                            },
+                          ],
+                        },
+                        {
+                          text:
+                            patientSignature.label ??
+                            "Patient / attendant signature on file",
+                          bold: true,
+                          margin: [0, 5, 0, 0],
+                        },
+                        {
+                          text: "Reused with recorded authorisation; not a cryptographic digital signature.",
+                          fontSize: 7,
+                          color: MUTED,
+                          margin: [0, 2, 0, 0],
                         },
                       ],
-                    },
-                    {
-                      text: signature[0]!,
-                      bold: true,
-                      margin: [0, 4, 0, 0],
-                    },
-                    ...signature.slice(1).map(line => ({
-                      text: line,
-                      fontSize: 8,
-                      color: MUTED,
-                    })),
-                  ],
-                },
+                    }
+                  : { width: 180, text: "" },
+                { width: "*", text: "" },
+                signature?.length
+                  ? {
+                      width: 180,
+                      stack: [
+                        {
+                          canvas: [
+                            {
+                              type: "line" as const,
+                              x1: 0,
+                              y1: 0,
+                              x2: 180,
+                              y2: 0,
+                              lineWidth: 0.7,
+                              lineColor: MUTED,
+                            },
+                          ],
+                        },
+                        {
+                          text: signature[0]!,
+                          bold: true,
+                          margin: [0, 4, 0, 0],
+                        },
+                        ...signature.slice(1).map(line => ({
+                          text: line,
+                          fontSize: 8,
+                          color: MUTED,
+                        })),
+                      ],
+                    }
+                  : { width: 180, text: "" },
               ],
             } satisfies Content,
           ]

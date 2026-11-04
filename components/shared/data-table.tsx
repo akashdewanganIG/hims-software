@@ -9,18 +9,21 @@ import {
   ChevronRight,
   ChevronsUpDown,
   Columns,
+  Download,
 } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useFreshIds } from "@/lib/fresh";
+import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_PAGE_SIZE = 12;
@@ -31,6 +34,8 @@ export interface Column<T> {
   cell: (row: T) => React.ReactNode;
   /** Enables sorting on this column. */
   sortValue?: (row: T) => string | number | undefined;
+  /** Plain value used in CSV/XLSX exports for cells with rich JSX. */
+  exportValue?: (row: T) => string | number | boolean | null | undefined;
   align?: "left" | "right" | "center";
   width?: string;
   /** Hidden until the user switches it on in the Columns menu. */
@@ -61,6 +66,7 @@ export function DataTable<T>({
   pageSize = DEFAULT_PAGE_SIZE,
   initialSort,
   toolbar,
+  exportName,
 }: {
   columns: Column<T>[];
   rows: T[];
@@ -73,6 +79,8 @@ export function DataTable<T>({
   initialSort?: { id: string; direction: "asc" | "desc" };
   /** Search, filters or view tabs, shown left of the Columns control. */
   toolbar?: React.ReactNode;
+  /** Base file name for the filtered view export. */
+  exportName?: string;
 }) {
   const [hidden, setHidden] = React.useState<Set<string>>(
     () => new Set(columns.filter(c => c.defaultHidden).map(c => c.id))
@@ -112,6 +120,62 @@ export function DataTable<T>({
   }, [fresh, sorted, keyOf, pageSize]);
   const pageRows = sorted.slice((page - 1) * pageSize, page * pageSize);
 
+  const exportColumns = visible.filter(column => column.header.trim());
+  const exportRows = () =>
+    sorted.map(row =>
+      Object.fromEntries(
+        exportColumns.map(column => [
+          column.header,
+          safeSpreadsheetValue(
+            column.exportValue?.(row) ??
+              column.sortValue?.(row) ??
+              reactNodeText(column.cell(row))
+          ),
+        ])
+      )
+    );
+
+  const downloadExport = async (format: "csv" | "xlsx") => {
+    if (!sorted.length) {
+      toast.info("There are no rows in this filtered view to export.");
+      return;
+    }
+    try {
+      const XLSX = await import("xlsx");
+      const sheet = XLSX.utils.json_to_sheet(exportRows(), {
+        header: exportColumns.map(column => column.header),
+      });
+      const routeName = window.location.pathname
+        .split("/")
+        .filter(Boolean)
+        .join("-");
+      const name = (exportName || routeName || "dashboard-export").replace(
+        /[^a-z0-9._-]+/gi,
+        "-"
+      );
+      if (format === "csv") {
+        const csv = `\uFEFF${XLSX.utils.sheet_to_csv(sheet)}`;
+        const url = URL.createObjectURL(
+          new Blob([csv], { type: "text/csv;charset=utf-8" })
+        );
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `${name}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+      } else {
+        const book = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(book, sheet, "Filtered view");
+        XLSX.writeFile(book, `${name}.xlsx`, { compression: true });
+      }
+      toast.success(
+        `Exported ${sorted.length} ${sorted.length === 1 ? "row" : "rows"}.`
+      );
+    } catch (error) {
+      toast.error(error, "Could not export this view");
+    }
+  };
+
   const toggleSort = (column: Column<T>) => {
     if (!column.sortValue) return;
     setSort(current =>
@@ -125,11 +189,36 @@ export function DataTable<T>({
 
   return (
     <div className="min-w-0">
-      {toolbar ? (
+      {toolbar || columns.length ? (
         <div className="flex flex-col gap-2 border-b border-border px-3 py-2.5 md:flex-row md:items-center">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
             {toolbar}
           </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                className="shrink-0 self-end md:self-auto"
+                disabled={isLoading || sorted.length === 0}
+              >
+                <Download className="size-4" />
+                Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuLabel>
+                Current filtered view ({sorted.length})
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => void downloadExport("xlsx")}>
+                Excel workbook (.xlsx)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => void downloadExport("csv")}>
+                CSV (.csv)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -339,4 +428,24 @@ export function DataTable<T>({
       ) : null}
     </div>
   );
+}
+
+function reactNodeText(node: React.ReactNode): string {
+  if (node === null || node === undefined || typeof node === "boolean")
+    return "";
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node))
+    return node.map(reactNodeText).filter(Boolean).join(" ");
+  if (React.isValidElement<{ children?: React.ReactNode }>(node))
+    return reactNodeText(node.props.children);
+  return "";
+}
+
+/** Prevent spreadsheet software from interpreting imported text as formulae. */
+function safeSpreadsheetValue(
+  value: string | number | boolean | null | undefined
+) {
+  if (value === null || value === undefined) return "";
+  if (typeof value !== "string") return value;
+  return /^[=+\-@]/.test(value) ? `'${value}` : value;
 }

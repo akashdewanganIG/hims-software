@@ -9,6 +9,7 @@ import {
   PanelRowsSkeleton,
 } from "@/components/shared/page";
 import { useAdmission } from "@/features/ipd/api";
+import { useStoredFile } from "@/lib/api/client";
 import { pdfName } from "@/lib/pdf/layout";
 import { dischargeSummaryPdf } from "@/lib/pdf/records";
 import { formatDate, formatDateTime, formatGender } from "@/lib/format";
@@ -16,6 +17,9 @@ import { formatDate, formatDateTime, formatGender } from "@/lib/format";
 export default function DischargeSummaryPrint() {
   const { id } = useParams<{ id: string }>();
   const { data, isLoading } = useAdmission(id);
+  const { data: patientSignature } = useStoredFile(
+    data?.patient.signatureFileId
+  );
 
   if (isLoading) {
     return (
@@ -41,8 +45,9 @@ export default function DischargeSummaryPrint() {
     <PrintDocument
       pdf={{
         fileName: pdfName("Discharge-summary", admission.code),
-        build: () => dischargeSummaryPdf(data),
+        build: () => dischargeSummaryPdf(data, patientSignature?.data),
       }}
+      patientSignature={patientSignature?.data}
       title="Discharge summary"
       reference={`${admission.code}${summary.status === "DRAFT" ? " · DRAFT" : ""}`}
       footer={

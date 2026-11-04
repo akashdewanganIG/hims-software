@@ -43,7 +43,7 @@ import {
   formatINR,
   humanize,
 } from "@/lib/format";
-import { useAction } from "@/lib/api/client";
+import { useAction, useStoredFile } from "@/lib/api/client";
 import { pdfName } from "@/lib/pdf/layout";
 import { invoicePdf } from "@/lib/pdf/records";
 import { useSession } from "@/lib/session";
@@ -53,6 +53,7 @@ export default function InvoicePage() {
   const { id } = useParams<{ id: string }>();
   const { can } = useSession();
   const { data, isLoading, error } = useInvoice(id);
+  const { data: patientSignature } = useStoredFile(data?.signatureFileId);
   const [payOpen, setPayOpen] = React.useState(false);
   const [refundOpen, setRefundOpen] = React.useState(false);
   const [chargeOpen, setChargeOpen] = React.useState(false);
@@ -127,7 +128,10 @@ export default function InvoicePage() {
           <>
             <DownloadPdfButton
               fileName={pdfName("Bill", invoice.code)}
-              build={() => invoicePdf(data)}
+              build={() => invoicePdf(data, patientSignature?.data)}
+              buildWithoutPatientSignature={
+                patientSignature ? () => invoicePdf(data) : undefined
+              }
             />
             <Button asChild variant="outline">
               <Link href={`/billing/${invoice.id}/print`}>

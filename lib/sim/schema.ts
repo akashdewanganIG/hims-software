@@ -421,6 +421,7 @@ export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
 /** What an uploaded file belongs to (its `ownerId` points at that row). */
 export const FILE_OWNERS = [
   "PATIENT_PHOTO",
+  "PATIENT_SIGNATURE",
   "STAFF_PHOTO",
   "DOCUMENT",
   "COMPLAINT",

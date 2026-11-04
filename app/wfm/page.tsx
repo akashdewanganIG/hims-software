@@ -8,9 +8,14 @@ import {
   CalendarDays,
   Edit,
   Plus,
+  Upload,
   UserCheck,
   UsersThree,
 } from "@/components/icons";
+import {
+  BulkImportDialog,
+  type ImportField,
+} from "@/components/shared/bulk-import-dialog";
 import { DataTable, type Column } from "@/components/shared/data-table";
 import { RefCode } from "@/components/shared/entity";
 import { PersonPhoto, PhotoDialog } from "@/components/shared/files";
@@ -77,6 +82,43 @@ export default function StaffPage() {
 
 const roleLabel = (role: StaffRole) => STAFF_ROLE_LABEL[role];
 
+const STAFF_IMPORT_FIELDS: ImportField[] = [
+  { key: "firstName", label: "First name", example: "Meera", required: true },
+  { key: "lastName", label: "Last name", example: "Nair", required: true },
+  {
+    key: "department",
+    label: "Department",
+    example: "Radiology",
+    required: true,
+    aliases: ["Department ID"],
+  },
+  {
+    key: "designation",
+    label: "Designation",
+    example: "Radiologist",
+    required: true,
+  },
+  { key: "role", label: "Role", example: "RADIOLOGIST", required: true },
+  {
+    key: "specialisation",
+    label: "Specialisation",
+    example: "Diagnostic radiology",
+  },
+  {
+    key: "qualification",
+    label: "Qualification",
+    example: "MD Radiodiagnosis",
+  },
+  { key: "phone", label: "Mobile", example: "9876543210", required: true },
+  {
+    key: "email",
+    label: "Email",
+    example: "meera.nair@hospital.test",
+    required: true,
+  },
+  { key: "consultationFee", label: "Consultation fee", example: 800 },
+];
+
 function StaffDirectory() {
   const params = useSearchParams();
   const { can } = useSession();
@@ -85,10 +127,12 @@ function StaffDirectory() {
   const [role, setRole] = React.useState("");
   const [openId, setOpenId] = React.useState<string | null>(params.get("open"));
   const [createOpen, setCreateOpen] = React.useState(false);
+  const [importOpen, setImportOpen] = React.useState(false);
   const {
     data: rows = [],
     isLoading,
     error,
+    refetch,
   } = useStaffList({
     q: q || undefined,
     departmentId: departmentId || undefined,
@@ -96,6 +140,31 @@ function StaffDirectory() {
   });
   const { data: all = [] } = useStaffList({});
   const { data: departments = [] } = useDepartments();
+  const importStaff = useAction(
+    "wfm.createStaff",
+    (values: Record<string, string>) => {
+      const department = departments.find(
+        item =>
+          item.id.toLowerCase() === values.department?.toLowerCase() ||
+          item.name.toLowerCase() === values.department?.toLowerCase()
+      );
+      return {
+        firstName: values.firstName!,
+        lastName: values.lastName!,
+        departmentId: department!.id,
+        designation: values.designation!,
+        role: values.role!.toUpperCase() as StaffRole,
+        specialisation: values.specialisation || undefined,
+        qualification: values.qualification || undefined,
+        phone: values.phone!,
+        email: values.email!,
+        consultationFee: values.consultationFee
+          ? Number(values.consultationFee)
+          : undefined,
+      };
+    },
+    { silent: true }
+  );
 
   const onDuty = all.filter(s => s.onDuty).length;
   const onLeave = all.filter(
@@ -200,10 +269,16 @@ function StaffDirectory() {
               </Link>
             </Button>
             {can("wfm.manage") ? (
-              <Button onClick={() => setCreateOpen(true)}>
-                <Plus className="size-4" />
-                Add staff
-              </Button>
+              <>
+                <Button variant="outline" onClick={() => setImportOpen(true)}>
+                  <Upload className="size-4" />
+                  Import
+                </Button>
+                <Button onClick={() => setCreateOpen(true)}>
+                  <Plus className="size-4" />
+                  Add staff
+                </Button>
+              </>
             ) : null}
           </>
         }
@@ -289,6 +364,42 @@ function StaffDirectory() {
         open={createOpen}
         onOpenChange={setCreateOpen}
         onSaved={id => setOpenId(id)}
+      />
+      <BulkImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Import staff master"
+        description="Add reviewed staff records. Rosters, attendance and login access are intentionally not imported or overwritten."
+        fields={STAFF_IMPORT_FIELDS}
+        validate={values => {
+          const errors: string[] = [];
+          const role = values.role?.toUpperCase() as StaffRole;
+          if (!STAFF_ROLES.includes(role))
+            errors.push(`Role must be one of: ${STAFF_ROLES.join(", ")}.`);
+          if (
+            !departments.some(
+              item =>
+                item.id.toLowerCase() === values.department?.toLowerCase() ||
+                item.name.toLowerCase() === values.department?.toLowerCase()
+            )
+          )
+            errors.push(
+              "Department must match an existing department name or ID."
+            );
+          if (!/^\d{10}$/.test((values.phone ?? "").replace(/\D/g, "")))
+            errors.push("Mobile must have 10 digits.");
+          if (!/^\S+@\S+\.\S+$/.test(values.email ?? ""))
+            errors.push("Email is invalid.");
+          if (
+            values.consultationFee &&
+            (!Number.isFinite(Number(values.consultationFee)) ||
+              Number(values.consultationFee) < 0)
+          )
+            errors.push("Consultation fee must be zero or a positive number.");
+          return errors;
+        }}
+        importRow={values => importStaff.mutateAsync(values)}
+        onComplete={() => void refetch()}
       />
     </PageShell>
   );

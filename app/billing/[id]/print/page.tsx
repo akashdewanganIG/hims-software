@@ -9,6 +9,7 @@ import {
   PanelRowsSkeleton,
 } from "@/components/shared/page";
 import { useInvoice } from "@/features/billing/api";
+import { useStoredFile } from "@/lib/api/client";
 import { pdfName } from "@/lib/pdf/layout";
 import { invoicePdf } from "@/lib/pdf/records";
 import {
@@ -23,6 +24,7 @@ import { HOSPITAL } from "@/lib/sim/reference";
 export default function InvoicePrint() {
   const { id } = useParams<{ id: string }>();
   const { data, isLoading } = useInvoice(id);
+  const { data: patientSignature } = useStoredFile(data?.signatureFileId);
   if (isLoading) {
     return (
       <PageShell>
@@ -49,8 +51,9 @@ export default function InvoicePrint() {
     <PrintDocument
       pdf={{
         fileName: pdfName("Bill", invoice.code),
-        build: () => invoicePdf(data),
+        build: () => invoicePdf(data, patientSignature?.data),
       }}
+      patientSignature={patientSignature?.data}
       title={title}
       reference={invoice.code}
       footer={

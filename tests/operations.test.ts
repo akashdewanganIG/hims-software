@@ -2853,6 +2853,80 @@ test("records: photos, documents, complaint and staff edits, bill lines, prescri
     { message: /no photo/ }
   );
 
+  // Reusable signatures are separately permissioned, replace-in-place and
+  // require a recorded reuse authorisation plus attendant relationship.
+  const signatures = () =>
+    h.db.files.filter(
+      f => f.ownerType === "PATIENT_SIGNATURE" && f.ownerId === patient.id
+    );
+  h.refuse(
+    desk,
+    "patient.setSignature",
+    {
+      patientId: patient.id,
+      signature: pngUpload("signature.png"),
+      source: "OCR_SCAN",
+      signerType: "PATIENT",
+      reuseAuthorised: false as true,
+    },
+    { code: "INVALID_INPUT" }
+  );
+  h.refuse(
+    desk,
+    "patient.setSignature",
+    {
+      patientId: patient.id,
+      signature: pngUpload("signature.png"),
+      source: "DRAWN",
+      signerType: "ATTENDANT",
+      reuseAuthorised: true,
+    },
+    { message: /relationship/ }
+  );
+  h.run(desk, "patient.setSignature", {
+    patientId: patient.id,
+    signature: pngUpload("signature.png"),
+    source: "OCR_SCAN",
+    signerType: "ATTENDANT",
+    relationship: "Spouse",
+    reuseAuthorised: true,
+  });
+  assert.deepEqual(
+    signatures().map(file => file.name),
+    ["signature.png"]
+  );
+  h.run(desk, "patient.setSignature", {
+    patientId: patient.id,
+    signature: pngUpload("redrawn.png"),
+    source: "DRAWN",
+    signerType: "PATIENT",
+    reuseAuthorised: true,
+  });
+  assert.deepEqual(
+    signatures().map(file => file.name),
+    ["redrawn.png"]
+  );
+  h.refuse(
+    pharmacist,
+    "patient.setSignature",
+    {
+      patientId: patient.id,
+      signature: pngUpload(),
+      source: "DRAWN",
+      signerType: "PATIENT",
+      reuseAuthorised: true,
+    },
+    { code: "FORBIDDEN" }
+  );
+  h.run(desk, "patient.removeSignature", { patientId: patient.id });
+  assert.equal(signatures().length, 0);
+  h.refuse(
+    desk,
+    "patient.removeSignature",
+    { patientId: patient.id },
+    { message: /no signature/ }
+  );
+
   // Documents carry their content; removal respects the case file.
   const { appointment, encounter } = h.run(desk, "appointment.walkIn", {
     patientId: patient.id,

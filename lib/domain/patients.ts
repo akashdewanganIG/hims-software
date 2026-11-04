@@ -163,6 +163,52 @@ export function removePatientPhoto(tx: Tx, patientId: ID) {
   return patient;
 }
 
+export function setPatientSignature(
+  tx: Tx,
+  patientId: ID,
+  signature: FileInput,
+  source: "DRAWN" | "OCR_SCAN",
+  signerType: "PATIENT" | "ATTENDANT",
+  relationship?: string
+) {
+  const patient = must(tx.db.patients, patientId, "Patient");
+  if (signerType === "ATTENDANT")
+    requireText(relationship ?? "", "Attendant relationship");
+  removeFilesOf(tx, "PATIENT_SIGNATURE", patient.id);
+  const file = storeFile(
+    tx,
+    { type: "PATIENT_SIGNATURE", id: patient.id },
+    signature,
+    IMAGE_TYPES
+  );
+  touch(tx, patient);
+  log(tx, {
+    entityType: "patient",
+    entityId: patient.id,
+    patientId: patient.id,
+    action: "signature",
+    summary: `${signerType === "PATIENT" ? "Patient" : `Attendant (${relationship})`} signature captured from ${source === "DRAWN" ? "signature pad" : "OCR-assisted scan"}; reuse authorised at capture`,
+  });
+  return { fileId: file.id };
+}
+
+export function removePatientSignature(tx: Tx, patientId: ID) {
+  const patient = must(tx.db.patients, patientId, "Patient");
+  assert(
+    removeFilesOf(tx, "PATIENT_SIGNATURE", patient.id) > 0,
+    `${patient.firstName} ${patient.lastName} has no signature on file.`
+  );
+  touch(tx, patient);
+  log(tx, {
+    entityType: "patient",
+    entityId: patient.id,
+    patientId: patient.id,
+    action: "signature",
+    summary: `Reusable signature removed from ${patient.uhid}`,
+  });
+  return patient;
+}
+
 /**
  * Why a registration cannot be deleted, or undefined when it can: only a
  * patient registered in error — nothing booked, seen, billed, filed or
@@ -198,6 +244,7 @@ export function removePatient(tx: Tx, patientId: ID) {
   const block = patientRemovalBlock(tx.db, patient.id);
   assert(!block, block ?? "");
   removeFilesOf(tx, "PATIENT_PHOTO", patient.id);
+  removeFilesOf(tx, "PATIENT_SIGNATURE", patient.id);
   tx.db.patients = tx.db.patients.filter(p => p.id !== patient.id);
   // Earlier activity keeps its text but no longer points at the patient.
   for (const event of tx.db.activity)

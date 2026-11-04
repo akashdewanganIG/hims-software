@@ -11,6 +11,7 @@ import {
   FileText,
   HospitalIcon,
   ImageSquare,
+  NotePencil,
   Trash2,
   Upload,
 } from "@/components/icons";
@@ -48,6 +49,10 @@ import { AdmitDialog } from "@/features/ipd/admit-dialog";
 import { BookAppointmentDialog } from "@/features/opd/booking-dialogs";
 import { usePatientRecord, type PatientRecord } from "@/features/patients/api";
 import { PatientFormDialog } from "@/features/patients/patient-form-dialog";
+import {
+  PatientSignatureDialog,
+  type SignatureCapture,
+} from "@/features/patients/signature-dialog";
 import {
   EditDocumentDialog,
   UploadDocumentDialog,
@@ -89,8 +94,10 @@ export default function PatientRecordPage() {
   const [admitOpen, setAdmitOpen] = React.useState(false);
   const [uploadOpen, setUploadOpen] = React.useState(false);
   const [photoOpen, setPhotoOpen] = React.useState(false);
+  const [signatureOpen, setSignatureOpen] = React.useState(false);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const { data: photo } = useStoredFile(data?.patient.photoFileId);
+  const { data: signature } = useStoredFile(data?.patient.signatureFileId);
   const setPhoto = useAction(
     "patient.setPhoto",
     (upload: PreparedUpload) => ({
@@ -103,6 +110,23 @@ export default function PatientRecordPage() {
     "patient.removePhoto",
     () => ({ patientId: id }),
     { success: "Photo removed" }
+  );
+  const setSignature = useAction(
+    "patient.setSignature",
+    (capture: SignatureCapture) => ({
+      patientId: id,
+      signature: { name: capture.upload.name, data: capture.upload.data },
+      source: capture.source,
+      signerType: capture.signerType,
+      relationship: capture.relationship,
+      reuseAuthorised: true as const,
+    }),
+    { success: "Authorised signature saved" }
+  );
+  const removeSignature = useAction(
+    "patient.removeSignature",
+    () => ({ patientId: id }),
+    { success: "Signature removed" }
   );
   const remove = useAction("patient.remove", () => ({ patientId: id }), {
     success: p => `Registration ${p.uhid} deleted`,
@@ -228,8 +252,19 @@ export default function PatientRecordPage() {
             <DownloadPdfButton
               label="Download record"
               fileName={pdfName("Patient-record", patient.uhid)}
-              build={() => patientRecordPdf(data, photo?.data)}
+              build={() => patientRecordPdf(data, photo?.data, signature?.data)}
+              buildWithoutPatientSignature={
+                signature
+                  ? () => patientRecordPdf(data, photo?.data)
+                  : undefined
+              }
             />
+            {can("patient.edit") ? (
+              <Button variant="outline" onClick={() => setSignatureOpen(true)}>
+                <NotePencil className="size-4" />
+                {patient.signatureFileId ? "Manage signature" : "Add signature"}
+              </Button>
+            ) : null}
             {can("patient.edit") ? (
               <Button variant="outline" onClick={() => setEditOpen(true)}>
                 <Edit className="size-4" />
@@ -485,6 +520,16 @@ export default function PatientRecordPage() {
         onRemove={() => removePhoto.mutateAsync()}
         saving={setPhoto.isPending}
         removing={removePhoto.isPending}
+      />
+      <PatientSignatureDialog
+        open={signatureOpen}
+        onOpenChange={setSignatureOpen}
+        name={`${patient.firstName} ${patient.lastName}`}
+        fileId={patient.signatureFileId}
+        onSave={capture => setSignature.mutateAsync(capture)}
+        onRemove={() => removeSignature.mutateAsync()}
+        saving={setSignature.isPending}
+        removing={removeSignature.isPending}
       />
     </PageShell>
   );

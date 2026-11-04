@@ -726,6 +726,7 @@ export function checkIntegrity(db: Database): IntegrityIssue[] {
 /** The table each kind of file owner lives in. */
 const FILE_OWNER_TABLE: Partial<Record<FileOwner, TableName>> = {
   PATIENT_PHOTO: "patients",
+  PATIENT_SIGNATURE: "patients",
   STAFF_PHOTO: "staff",
   DOCUMENT: "documents",
   COMPLAINT: "complaints",

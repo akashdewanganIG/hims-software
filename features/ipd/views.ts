@@ -147,7 +147,7 @@ export function admissionsView(
 export interface AdmissionDetail {
   row: AdmissionRow;
   admission: Admission;
-  patient: Patient & { age: number; photoFileId?: ID };
+  patient: Patient & { age: number; photoFileId?: ID; signatureFileId?: ID };
   encounterId: ID;
   diagnoses: string[];
   bedHistory: Array<{
@@ -270,6 +270,7 @@ export function admissionView(
       ...patient,
       age: patientRef(db, patient.id, now)!.age,
       photoFileId: fileOf(db, "PATIENT_PHOTO", patient.id)?.id,
+      signatureFileId: fileOf(db, "PATIENT_SIGNATURE", patient.id)?.id,
     },
     encounterId: encounter.id,
     diagnoses: encounter.diagnoses.map(d => d.description),

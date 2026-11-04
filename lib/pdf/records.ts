@@ -290,7 +290,10 @@ export function labReportPdf(data: LabOrderDetail) {
 /* Discharge summary                                                   */
 /* ------------------------------------------------------------------ */
 
-export function dischargeSummaryPdf(data: AdmissionDetail) {
+export function dischargeSummaryPdf(
+  data: AdmissionDetail,
+  patientSignature?: string
+) {
   const { summary, patient, admission, row } = data;
   if (!summary) throw new Error("This admission has no discharge summary yet.");
   const verified = data.labOrders.filter(o => o.status === "VERIFIED");
@@ -298,6 +301,9 @@ export function dischargeSummaryPdf(data: AdmissionDetail) {
     title: "Discharge summary",
     reference: `${admission.code}${summary.status === "DRAFT" ? " · DRAFT" : ""}`,
     signature: [summary.preparedBy, row.department],
+    patientSignature: patientSignature
+      ? { image: patientSignature }
+      : undefined,
     content: [
       fields([
         ["Patient", `${patient.firstName} ${patient.lastName}`],
@@ -356,7 +362,7 @@ export function dischargeSummaryPdf(data: AdmissionDetail) {
 /* Bill                                                                */
 /* ------------------------------------------------------------------ */
 
-export function invoicePdf(data: InvoiceDetail) {
+export function invoicePdf(data: InvoiceDetail, patientSignature?: string) {
   const { invoice, totals: t, patient } = data;
   const title =
     invoice.status === "DRAFT"
@@ -368,6 +374,9 @@ export function invoicePdf(data: InvoiceDetail) {
     title,
     reference: `${invoice.code}${invoice.status === "CANCELLED" ? " · CANCELLED" : ""}`,
     signature: ["Authorised signatory", `GSTIN ${HOSPITAL.gstin}`],
+    patientSignature: patientSignature
+      ? { image: patientSignature }
+      : undefined,
     content: [
       fields([
         ["Patient", patient.name],
@@ -537,7 +546,11 @@ export function collectionsPdf(
 /* Patient record (EHR summary)                                        */
 /* ------------------------------------------------------------------ */
 
-export function patientRecordPdf(record: PatientRecord, photo?: string) {
+export function patientRecordPdf(
+  record: PatientRecord,
+  photo?: string,
+  patientSignature?: string
+) {
   const { patient } = record;
   const identity: Content = fields(
     [
@@ -568,6 +581,9 @@ export function patientRecordPdf(record: PatientRecord, photo?: string) {
   return recordDocument({
     title: "Patient record",
     reference: patient.uhid,
+    patientSignature: patientSignature
+      ? { image: patientSignature }
+      : undefined,
     content: [
       photo
         ? {
@@ -762,12 +778,15 @@ export function patientRecordPdf(record: PatientRecord, photo?: string) {
  * the completeness checklist, an index of its documents and the custody
  * trail of who retrieved or reviewed it.
  */
-export function caseFilePdf(data: MrdDetail) {
+export function caseFilePdf(data: MrdDetail, patientSignature?: string) {
   const { record, encounter, admission, patient } = data;
   const done = data.checklist.filter(i => i.done).length;
   return recordDocument({
     title: "Medical record — case file",
     reference: record.code,
+    patientSignature: patientSignature
+      ? { image: patientSignature }
+      : undefined,
     content: [
       fields([
         ["Patient", patient.name],

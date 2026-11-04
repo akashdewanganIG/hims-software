@@ -27,6 +27,7 @@ import type {
   Payment,
 } from "@/lib/sim/schema";
 import { isSameDay, isoDate } from "@/lib/sim/time";
+import { fileOf } from "@/lib/domain/files";
 
 export type BillView = "due" | "running" | "refund" | "paid" | "all";
 export interface InvoiceRow extends InvoiceTotals {
@@ -172,6 +173,7 @@ export interface InvoiceDetail {
   invoice: Invoice;
   totals: InvoiceTotals;
   patient: PatientRef & { address: string; city: string };
+  signatureFileId?: ID;
   setting: "OPD" | "IPD";
   context: string;
   encounter?: {
@@ -223,6 +225,7 @@ export function invoiceView(
       address: patient.address,
       city: patient.city,
     },
+    signatureFileId: fileOf(db, "PATIENT_SIGNATURE", patient.id)?.id,
     ...contextOf(db, invoice),
     encounter: encounter
       ? {

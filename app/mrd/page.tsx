@@ -61,7 +61,7 @@ import {
   UploadDocumentDialog,
 } from "@/features/patients/upload-document-dialog";
 import { useQueryClient } from "@tanstack/react-query";
-import { ROOT_KEY, useAction } from "@/lib/api/client";
+import { ROOT_KEY, useAction, useStoredFile } from "@/lib/api/client";
 import { formatDateShort, formatDateTime, humanize } from "@/lib/format";
 import { pdfName } from "@/lib/pdf/layout";
 import { caseFilePdf } from "@/lib/pdf/records";
@@ -294,6 +294,7 @@ function RecordSheet({
   const { can, staff } = useSession();
   const confirm = useConfirm();
   const { data } = useMedicalRecord(id);
+  const { data: patientSignature } = useStoredFile(data?.signatureFileId);
   const [dialog, setDialog] = React.useState<
     null | "return" | "archive" | "upload"
   >(null);
@@ -558,7 +559,10 @@ function RecordSheet({
                 <div className="flex flex-col gap-2 sm:mr-auto sm:flex-row sm:flex-wrap">
                   <DownloadPdfButton
                     fileName={pdfName("Case-file", rec.code)}
-                    build={() => caseFilePdf(data)}
+                    build={() => caseFilePdf(data, patientSignature?.data)}
+                    buildWithoutPatientSignature={
+                      patientSignature ? () => caseFilePdf(data) : undefined
+                    }
                   />
                   {can("document.upload") && rec.status !== "ARCHIVED" ? (
                     <Button

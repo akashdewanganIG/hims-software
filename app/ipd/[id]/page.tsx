@@ -52,7 +52,7 @@ import { DischargePanel } from "@/features/ipd/discharge-panel";
 import { LabOrderForm } from "@/features/opd/lab-order-form";
 import { PrescriptionBuilder } from "@/features/opd/prescription-builder";
 import { RadiologyOrderDialog } from "@/features/radiology/order-dialog";
-import { useAction } from "@/lib/api/client";
+import { useAction, useStoredFile } from "@/lib/api/client";
 import {
   formatDate,
   formatDateShort,
@@ -224,6 +224,9 @@ function AdmissionActions({
   const [transferOpen, setTransferOpen] = React.useState(false);
   const [confirmDischarge, setConfirmDischarge] = React.useState(false);
   const { admission } = detail;
+  const { data: patientSignature } = useStoredFile(
+    detail.patient.signatureFileId
+  );
   const live = admission.status === "ADMITTED" || admission.status === "ACTIVE";
   const initiate = useAction(
     "ipd.initiateDischarge",
@@ -240,7 +243,10 @@ function AdmissionActions({
           <DownloadPdfButton
             label="Download summary"
             fileName={pdfName("Discharge-summary", admission.code)}
-            build={() => dischargeSummaryPdf(detail)}
+            build={() => dischargeSummaryPdf(detail, patientSignature?.data)}
+            buildWithoutPatientSignature={
+              patientSignature ? () => dischargeSummaryPdf(detail) : undefined
+            }
           />
         ) : null}
         <Button asChild variant="outline">

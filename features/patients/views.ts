@@ -106,7 +106,7 @@ export interface EncounterSummary {
   href: string;
 }
 export interface PatientRecord {
-  patient: Patient & { age: number; photoFileId?: ID };
+  patient: Patient & { age: number; photoFileId?: ID; signatureFileId?: ID };
   /** Why the registration cannot be deleted; absent when it was made in error and can be. */
   removeBlock?: string;
   activeAdmission?: {
@@ -438,6 +438,7 @@ export function patientRecordView(
       ...patient,
       age: patientRef(db, id, now)!.age,
       photoFileId: fileOf(db, "PATIENT_PHOTO", id)?.id,
+      signatureFileId: fileOf(db, "PATIENT_SIGNATURE", id)?.id,
     },
     removeBlock: patientRemovalBlock(db, id),
     activeAdmission: active

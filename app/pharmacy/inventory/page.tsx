@@ -2,7 +2,11 @@
 
 import * as React from "react";
 
-import { Edit, Plus, Trash2 } from "@/components/icons";
+import { Edit, Plus, Trash2, Upload } from "@/components/icons";
+import {
+  BulkImportDialog,
+  type ImportField,
+} from "@/components/shared/bulk-import-dialog";
 import { DataTable, type Column } from "@/components/shared/data-table";
 import { RefCode } from "@/components/shared/entity";
 import { OcrScanButton } from "@/components/shared/ocr-scan-button";
@@ -53,9 +57,49 @@ import { addDaysIso, isoDate } from "@/lib/sim/time";
 
 type Filter = "all" | "low" | "expiry";
 
+const MEDICINE_IMPORT_FIELDS: ImportField[] = [
+  {
+    key: "name",
+    label: "Medicine name",
+    example: "Paracetamol",
+    required: true,
+  },
+  {
+    key: "genericName",
+    label: "Generic name",
+    example: "Paracetamol",
+    required: true,
+  },
+  { key: "form", label: "Form", example: "TABLET", required: true },
+  { key: "strength", label: "Strength", example: "500 mg", required: true },
+  { key: "unit", label: "Unit", example: "tablet", required: true },
+  { key: "category", label: "Category", example: "Analgesics", required: true },
+  {
+    key: "unitPrice",
+    label: "MRP per unit",
+    example: 2.5,
+    required: true,
+    aliases: ["Price"],
+  },
+  { key: "reorderLevel", label: "Reorder level", example: 100, required: true },
+  {
+    key: "manufacturer",
+    label: "Manufacturer",
+    example: "Acme Pharma",
+    required: true,
+  },
+  {
+    key: "prescriptionOnly",
+    label: "Prescription only",
+    example: false,
+    required: true,
+    aliases: ["Rx only"],
+  },
+];
+
 export default function InventoryPage() {
   const { can } = useSession();
-  const { data: rows = [], isLoading, error } = useInventory();
+  const { data: rows = [], isLoading, error, refetch } = useInventory();
   const [filter, setFilter] = React.useState<Filter>("all");
   const [q, setQ] = React.useState("");
   const [category, setCategory] = React.useState("");
@@ -64,6 +108,23 @@ export default function InventoryPage() {
   /** null: closed; "new": adding; otherwise the medicine being edited. */
   const [editing, setEditing] = React.useState<InventoryRow | "new" | null>(
     null
+  );
+  const [importOpen, setImportOpen] = React.useState(false);
+  const importMedicine = useAction(
+    "pharmacy.createMedicine",
+    (values: Record<string, string>) => ({
+      name: values.name!,
+      genericName: values.genericName!,
+      form: values.form!.toUpperCase() as MedicineForm,
+      strength: values.strength!,
+      unit: values.unit!,
+      category: values.category!,
+      unitPrice: Number(values.unitPrice),
+      reorderLevel: Number(values.reorderLevel),
+      manufacturer: values.manufacturer!,
+      prescriptionOnly: /^(true|yes|1|y)$/i.test(values.prescriptionOnly!),
+    }),
+    { silent: true }
   );
 
   const categories = [...new Set(rows.map(r => r.category))].sort();
@@ -213,6 +274,10 @@ export default function InventoryPage() {
         actions={
           can("pharmacy.stock") ? (
             <>
+              <Button variant="outline" onClick={() => setImportOpen(true)}>
+                <Upload className="size-4" />
+                Import
+              </Button>
               <Button variant="outline" onClick={() => setEditing("new")}>
                 <Plus className="size-4" />
                 Add medicine
@@ -313,6 +378,36 @@ export default function InventoryPage() {
         medicineId={receiveFor}
         medicines={rows}
         onClose={() => setReceiveFor(null)}
+      />
+      <BulkImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Import medicine formulary"
+        description="Add catalogue records only. Stock batches, expiry dates, suppliers and past transactions are never imported or overwritten here."
+        fields={MEDICINE_IMPORT_FIELDS}
+        validate={values => {
+          const errors: string[] = [];
+          if (
+            !MEDICINE_FORMS.includes(values.form?.toUpperCase() as MedicineForm)
+          )
+            errors.push(`Form must be one of: ${MEDICINE_FORMS.join(", ")}.`);
+          if (
+            !Number.isFinite(Number(values.unitPrice)) ||
+            Number(values.unitPrice) < 0
+          )
+            errors.push("MRP per unit must be zero or a positive number.");
+          if (!/^\d+$/.test(values.reorderLevel ?? ""))
+            errors.push("Reorder level must be a whole number.");
+          if (
+            !/^(true|false|yes|no|1|0|y|n)$/i.test(
+              values.prescriptionOnly ?? ""
+            )
+          )
+            errors.push("Prescription only must be yes/no or true/false.");
+          return errors;
+        }}
+        importRow={values => importMedicine.mutateAsync(values)}
+        onComplete={() => void refetch()}
       />
     </PageShell>
   );

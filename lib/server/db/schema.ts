@@ -455,6 +455,7 @@ export const documentKindEnum = pgEnum("DocumentKind", [
 
 export const fileOwnerEnum = pgEnum("FileOwner", [
   "PATIENT_PHOTO",
+  "PATIENT_SIGNATURE",
   "STAFF_PHOTO",
   "DOCUMENT",
   "COMPLAINT",

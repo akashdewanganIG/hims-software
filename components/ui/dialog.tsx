@@ -35,7 +35,7 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      "fixed inset-0 z-50 bg-overlay backdrop-blur-[2px] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+      "fixed inset-0 z-[80] bg-overlay backdrop-blur-[2px] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
       className
     )}
     {...props}
@@ -68,14 +68,14 @@ const DialogContent = React.forwardRef<
         }}
         data-slot="dialog-content"
         className={cn(
-          "fixed inset-0 z-50 m-auto flex h-fit max-h-[calc(100svh-1rem)] w-[calc(100%-1rem)] max-w-lg flex-col gap-0 overflow-hidden rounded-xl border border-border bg-surface p-0 shadow-lg shadow-black/10 duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 sm:max-h-[calc(100svh-2rem)] sm:w-[calc(100%-2rem)]",
+          "fixed inset-0 z-[80] m-auto flex h-fit max-h-[calc(100svh-1rem)] w-[calc(100%-1rem)] max-w-lg flex-col gap-0 overflow-hidden rounded-xl border border-border bg-surface p-0 shadow-lg shadow-black/10 duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 sm:max-h-[calc(100svh-2rem)] sm:w-[calc(100%-2rem)]",
           className
         )}
         {...props}
       >
         {children}
         {showCloseButton && (
-          <DialogPrimitive.Close className="absolute right-3 top-3 inline-flex size-7 items-center justify-center rounded-md text-muted-foreground outline-none transition-[background-color,color] duration-150 hover:bg-secondary hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30 disabled:pointer-events-none">
+          <DialogPrimitive.Close className="absolute right-3 top-3 z-20 inline-flex size-7 items-center justify-center rounded-md text-muted-foreground outline-none transition-[background-color,color] duration-150 hover:bg-secondary hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30 disabled:pointer-events-none">
             <X className="size-3.5" />
             <span className="sr-only">Close</span>
           </DialogPrimitive.Close>

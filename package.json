@@ -35,7 +35,8 @@
     "e2e:access": "node scripts/e2e/access-journey.mjs",
     "e2e:alerts": "node scripts/e2e/alerts-journey.mjs",
     "e2e:records": "node scripts/e2e/records-journey.mjs",
-    "e2e": "npm run e2e:roles && npm run e2e:opd && npm run e2e:ipd && npm run e2e:access && npm run e2e:alerts && npm run e2e:records"
+    "e2e:ui": "node scripts/e2e/ui-reliability.mjs",
+    "e2e": "npm run e2e:roles && npm run e2e:opd && npm run e2e:ipd && npm run e2e:access && npm run e2e:alerts && npm run e2e:records && npm run e2e:ui"
   },
   "engines": {
     "node": ">=20.9.0"
@@ -67,6 +68,7 @@
     "tailwind-merge": "^3.3.1",
     "tesseract.js": "^7.0.0",
     "ws": "^8.22.0",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^4.1.12"
   },
   "devDependencies": {

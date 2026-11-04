@@ -28,11 +28,11 @@ function SheetContent({
 }) {
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-overlay backdrop-blur-[2px] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+      <DialogPrimitive.Overlay className="fixed inset-0 z-[80] bg-overlay backdrop-blur-[2px] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
       <DialogPrimitive.Content
         data-slot="sheet-content"
         className={cn(
-          "fixed inset-y-0 right-0 z-50 flex h-full w-full flex-col border-l border-border bg-surface shadow-xl shadow-black/10 outline-none duration-200",
+          "fixed inset-y-0 right-0 z-[80] flex h-full w-full flex-col border-l border-border bg-surface shadow-xl shadow-black/10 outline-none duration-200",
           "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
           SIZES[size],
           className
@@ -40,7 +40,7 @@ function SheetContent({
         {...props}
       >
         {children}
-        <DialogPrimitive.Close className="absolute right-3 top-3 inline-flex size-7 items-center justify-center rounded-md text-muted-foreground outline-none transition-[background-color,color] duration-150 hover:bg-secondary hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30">
+        <DialogPrimitive.Close className="absolute right-3 top-3 z-20 inline-flex size-7 items-center justify-center rounded-md text-muted-foreground outline-none transition-[background-color,color] duration-150 hover:bg-secondary hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30">
           <X className="size-3.5" />
           <span className="sr-only">Close</span>
         </DialogPrimitive.Close>
